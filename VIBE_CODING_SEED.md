@@ -331,6 +331,10 @@ project/
 // Code example showing the preferred pattern
 ```
 
+## Related Documents
+- **[Decisions Log](DECISIONS.md)** - Detailed ADRs for major choices
+- **[Current Focus](../CURRENT_FOCUS.md)** - What's actively being worked on
+
 ## Upgrade Paths
 
 ### Phase 1: Current State ✅ (Now)
@@ -372,7 +376,119 @@ Runtime: Optimal
 
 ---
 
-### 4. Design System (`DESIGN_SYSTEM.md`)
+### 4. Current Focus (`CURRENT_FOCUS.md`)
+
+**Purpose**: A lightweight file at the project root that provides instant context about what's actively being worked on. Essential for AI session handoffs and team coordination.
+
+**Key Sections**:
+
+```markdown
+# Current Focus
+
+## 🎯 Active Work
+
+**Phase**: Phase 2 - Authentication  
+**Task**: Task 2.3 - JWT Middleware  
+**Sub-step**: 2.3.4 - Add token refresh logic  
+**Branch**: `feature/phase2-auth`
+
+## 📍 Quick Context
+
+**What we're doing**: Implementing JWT refresh token rotation.
+
+**Why**: Prevent token theft via short-lived access tokens.
+
+**Blocked by**: Nothing - clear to proceed.
+
+**Next up**: Task 2.4 - Role-based access control
+
+## 🔗 Key Files
+
+- Task details: `docs/phases/phase2/PHASE2_TASKS.md`
+- Phase overview: `docs/phases/phase2/README.md`
+
+## 📝 Session Notes
+
+_Add notes during work. Clear when starting new task._
+
+- [x] Confirmed refresh endpoint design with team
+- [ ] Need to handle concurrent refresh requests
+
+## 🕐 Last Updated
+
+**Date**: 2026-01-12  
+**Status**: 🚧 In Progress
+```
+
+**Usage**:
+- Update at the start of each work session
+- Clear session notes when moving to new task
+- AI assistants read this first to get oriented
+
+---
+
+### 5. Decisions Log (`DECISIONS.md`)
+
+**Purpose**: Architectural Decision Records (ADRs) that capture the "why" behind significant technical choices. Invaluable for onboarding and preventing repeated debates.
+
+**Key Sections**:
+
+```markdown
+# Architectural Decision Records
+
+## 📋 Decision Log
+
+| ID | Decision | Status | Date |
+|----|----------|--------|------|
+| ADR-001 | Use Hono over Express | ✅ Accepted | 2026-01-12 |
+| ADR-002 | PostgreSQL for primary DB | ✅ Accepted | 2026-01-13 |
+
+---
+
+## ADR-001: Use Hono over Express
+
+**Status**: ✅ Accepted  
+**Date**: 2026-01-12  
+**Deciders**: Engineering team
+
+### Context
+
+Need to choose a web framework for the API server.
+
+### Decision
+
+Use **Hono** for its TypeScript-first design and OpenAPI integration.
+
+### Consequences
+
+**Positive:**
+- Type-safe routing out of the box
+- Built-in OpenAPI generation
+- Lightweight (~14kb)
+
+**Negative:**
+- Smaller ecosystem than Express
+- Team needs to learn new patterns
+
+### Alternatives Considered
+
+| Alternative | Why Not |
+|-------------|---------|
+| Express | Legacy patterns, no native TypeScript |
+| Fastify | More complex, less OpenAPI integration |
+```
+
+**When to Write an ADR**:
+- Choosing between technologies
+- Defining architectural patterns
+- Security or compliance decisions
+- Any decision a new team member would question
+
+**Key Rule**: ADRs are immutable. If a decision changes, mark old as "Superseded" and create new ADR.
+
+---
+
+### 6. Design System (`DESIGN_SYSTEM.md`)
 
 **Purpose**: Visual language reference for consistent UI. Essential for AI when generating frontend code.
 
@@ -455,7 +571,7 @@ className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-200"
 
 ---
 
-### 5. Phases Overview (`phases/README.md`)
+### 7. Phases Overview (`phases/README.md`)
 
 **Purpose**: Track overall phase progress, provide navigation, and summarize each phase.
 
@@ -503,7 +619,7 @@ Each phase follows the same structure:
 
 ---
 
-### 6. Individual Phase README (`phases/phaseN/README.md`)
+### 8. Individual Phase README (`phases/phaseN/README.md`)
 
 **Purpose**: Quick reference for a specific phase. Used for sprint planning, stakeholder updates, and onboarding new team members to a phase.
 
@@ -623,7 +739,7 @@ After completion: → [Phase 3: Security Hardening](../phase3/)
 
 ---
 
-### 7. Phase Tasks (`phases/phaseN/PHASEN_TASKS.md`)
+### 9. Phase Tasks (`phases/phaseN/PHASEN_TASKS.md`)
 
 **Purpose**: The most detailed document. This is where AI and developers spend most of their time. Each task must be specific enough that someone unfamiliar with the codebase can execute it.
 
@@ -902,9 +1018,11 @@ npm init -y
 
 ### 2. Create Core Documents
 - [ ] `README.md` - Project overview, quick start
+- [ ] `CURRENT_FOCUS.md` - Quick reference for active work (AI session handoffs)
 - [ ] `docs/README.md` - Documentation index
 - [ ] `docs/TECH_STACK.md` - Technology choices & versions
 - [ ] `docs/ARCHITECTURE_GUIDE.md` - Why decisions were made, patterns
+- [ ] `docs/DECISIONS.md` - Architectural Decision Records (ADRs)
 - [ ] `docs/DESIGN_SYSTEM.md` - Colors, typography, components
 - [ ] `docs/PRODUCTION_ROADMAP.md` - High-level roadmap
 - [ ] `docs/phases/README.md` - Phase overview

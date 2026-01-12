@@ -17,6 +17,7 @@ Sections included:
 - Task overview and objectives
 - Scope and deliverables
 - Implementation steps
+- Rollback plans for risky tasks
 - Testing requirements
 - Definition of done
 
