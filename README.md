@@ -10,8 +10,9 @@
 
 **Start here:**
 1. [`VIBE_CODING_SEED.md`](./VIBE_CODING_SEED.md) — The complete methodology guide
-2. [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md) — What's actively being worked on
-3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — Architectural decision records
+2. [`docs/COMMANDS.md`](./docs/COMMANDS.md) — AI assistant commands for all IDEs
+3. [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md) — What's actively being worked on
+4. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — Architectural decision records
 
 ---
 
@@ -23,12 +24,17 @@ vibe_seed/
 ├── VIBE_CODING_SEED.md       ← Core methodology & document templates
 ├── CURRENT_FOCUS.md          ← Active work context (session handoffs)
 │
-└── docs/
-    ├── DECISIONS.md          ← ADR (Architectural Decision Records)
-    └── phases/
-        └── templates/        ← Reusable planning templates
-            ├── TASK_TEMPLATE.md
-            └── task_template_prompt.md
+├── docs/
+│   ├── COMMANDS.md           ← AI assistant commands guide
+│   ├── DECISIONS.md          ← ADR (Architectural Decision Records)
+│   ├── phases/
+│   │   └── templates/        ← Reusable planning templates
+│   └── templates/
+│       └── PRD_TEMPLATE.md   ← Product requirements template
+│
+├── .claude/skills/           ← Claude Code slash commands
+├── .cursor/commands/         ← Cursor slash commands
+└── .vscode/prompts/          ← VS Code Copilot prompts
 ```
 
 ---
@@ -66,8 +72,9 @@ vibe_seed/
 ## 🔗 Quick Links
 
 - [Full Methodology Guide](./VIBE_CODING_SEED.md)
+- [AI Commands Guide](./docs/COMMANDS.md) — How to use `/kickstart`, `/create-prd`, etc.
+- [PRD Template](./docs/templates/PRD_TEMPLATE.md)
 - [Task Template](./docs/phases/templates/TASK_TEMPLATE.md)
-- [AI Planning Prompt](./docs/phases/templates/task_template_prompt.md)
 
 ---
 
