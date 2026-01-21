@@ -33,6 +33,7 @@ Follow this prompt to load my session context
 | `update-focus.prompt.md` | edit | Update CURRENT_FOCUS.md | End of session or after major progress |
 | `check-task.prompt.md` | edit | Mark tasks complete | After completing a task |
 | `phase-status.prompt.md` | ask | View phase progress | Checking overall progress |
+| `cleanup.prompt.md` | edit | Reset to template state | Reusing template for new project |
 
 ## Prompt Modes
 
@@ -62,6 +63,9 @@ Open prompt picker → phase-status → "show phase 2 status"
 
 # Update focus
 Open prompt picker → update-focus → "completed auth middleware and API routes"
+
+# Reset to template state
+Open prompt picker → cleanup → "reset project for reuse"
 ```
 
 ## Comparison: Claude Code vs Cursor vs VS Code Copilot

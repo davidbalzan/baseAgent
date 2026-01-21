@@ -18,6 +18,7 @@ Cursor supports custom slash commands via `.cursor/commands/`. Type `/` in Agent
 | `/update-focus` | Update CURRENT_FOCUS.md | End of session or after major progress |
 | `/check-task` | Mark tasks complete | After completing a task |
 | `/phase-status` | View phase progress | Checking overall progress |
+| `/cleanup` | Reset to template state | Reusing template for new project |
 
 ### How to Use
 
@@ -37,6 +38,7 @@ Cursor supports custom slash commands via `.cursor/commands/`. Type `/` in Agent
 /update-focus       # Update current focus
 /check-task         # Mark task complete
 /phase-status       # View phase progress
+/cleanup            # Reset to template state
 ```
 
 ---
@@ -57,6 +59,7 @@ You can also reference prompt files directly in chat using `@`:
 | `@update-focus.md` | Update Current Focus |
 | `@check-task.md` | Mark tasks complete |
 | `@phase-status.md` | View phase progress |
+| `@cleanup.md` | Reset to template state |
 
 ### How to Use
 
@@ -80,7 +83,8 @@ You can also reference prompt files directly in chat using `@`:
 │   ├── log-decision.md
 │   ├── update-focus.md
 │   ├── check-task.md
-│   └── phase-status.md
+│   ├── phase-status.md
+│   └── cleanup.md
 │
 └── prompts/            # @ references (@file.md)
     ├── README.md

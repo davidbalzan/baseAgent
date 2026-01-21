@@ -16,6 +16,7 @@ This guide explains how to use the vibe coding workflow commands across differen
 | `update-focus` | Update current work status | End of session or after progress |
 | `check-task` | Mark tasks complete | After completing a task |
 | `phase-status` | View phase progress | Checking overall progress |
+| `cleanup` | Reset to template state | Reusing template for new project |
 
 ---
 
@@ -87,6 +88,9 @@ Use slash commands directly:
 
 # Check phase status
 /phase-status 1
+
+# Reset to template state
+/cleanup
 ```
 
 ### Cursor
@@ -102,6 +106,7 @@ Type `/` in Agent chat (Cmd+L) to see available commands:
 /update-focus
 /check-task
 /phase-status
+/cleanup
 ```
 
 Alternative: Use `@` file references:
@@ -126,6 +131,7 @@ Available prompts:
 - `update-focus.prompt.md`
 - `check-task.prompt.md`
 - `phase-status.prompt.md`
+- `cleanup.prompt.md`
 
 ---
 
@@ -300,6 +306,51 @@ Available prompts:
 ```
 /phase-status 2
 ```
+
+---
+
+### `/cleanup`
+
+**Purpose**: Reset project to clean template state for reuse.
+
+**What it does**:
+1. Shows dry-run preview of changes
+2. Deletes project-specific files (PRD, TECH_STACK, etc.)
+3. Resets CURRENT_FOCUS.md to template state
+4. Resets DECISIONS.md (keeps example ADR-001)
+5. Preserves all phase READMEs and templates
+
+**What gets REMOVED**:
+```
+docs/PRD.md, docs/PRD_*.md          # Project requirements
+docs/TECH_STACK.md                   # Technology choices
+docs/ARCHITECTURE_GUIDE.md           # Architecture decisions
+docs/DESIGN_SYSTEM.md                # Design tokens
+docs/PRODUCTION_ROADMAP.md           # Project roadmap
+docs/phases/phase*/PHASE*_TASKS.md   # Task breakdowns
+```
+
+**What gets PRESERVED**:
+```
+docs/phases/phase*/README.md         # Phase structure (for rebuilding)
+docs/phases/templates/*              # All task templates
+docs/templates/PRD_TEMPLATE.md       # PRD template
+.claude/skills/*                     # All skills
+.cursor/commands/*                   # All commands
+.vscode/prompts/*                    # All prompts
+VIBE_CODING_SEED.md                  # Core methodology
+```
+
+**When to use**: When you want to reuse this template for a new project.
+
+**Example**:
+```
+/cleanup
+/cleanup --dry-run
+/cleanup --keep-decisions
+```
+
+**Output**: Clean template ready for `/kickstart`
 
 ---
 
