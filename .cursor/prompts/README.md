@@ -25,6 +25,8 @@ Then ask: "Follow this prompt to load my session context"
 
 | Prompt | Purpose | When to Use |
 |--------|---------|-------------|
+| `kickstart.md` | Initialize project structure | Starting a brand new project |
+| `create-prd.md` | Generate a PRD | Defining product requirements |
 | `start-session.md` | Load project context | Start of each coding session |
 | `log-decision.md` | Create an ADR | After making architectural decisions |
 | `plan-phase.md` | Generate phase docs | Starting a new project phase |
@@ -35,6 +37,12 @@ Then ask: "Follow this prompt to load my session context"
 ## Quick Reference
 
 ```
+# Initialize a new project
+"@kickstart.md - initialize my new project called MyApp"
+
+# Create a PRD
+"@create-prd.md - create PRD for user authentication system"
+
 # Start a session
 "@start-session.md - load my project context"
 

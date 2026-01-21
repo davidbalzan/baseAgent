@@ -25,6 +25,8 @@ Follow this prompt to load my session context
 
 | Prompt | Mode | Purpose | When to Use |
 |--------|------|---------|-------------|
+| `kickstart.prompt.md` | edit | Initialize project structure | Starting a brand new project |
+| `create-prd.prompt.md` | edit | Generate a PRD | Defining product requirements |
 | `start-session.prompt.md` | ask | Load project context | Start of each coding session |
 | `log-decision.prompt.md` | edit | Create an ADR | After making architectural decisions |
 | `plan-phase.prompt.md` | edit | Generate phase docs | Starting a new project phase |
@@ -40,10 +42,16 @@ Follow this prompt to load my session context
 ## Quick Reference
 
 ```
+# Initialize a new project
+Open prompt picker → kickstart → "initialize my new project called MyApp"
+
+# Create a PRD
+Open prompt picker → create-prd → "create PRD for user authentication system"
+
 # Start a session
 Open prompt picker → start-session → "load my project context"
 
-# Log a decision  
+# Log a decision
 Open prompt picker → log-decision → "log decision about using Redis for caching"
 
 # Check a task
