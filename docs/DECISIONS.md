@@ -11,6 +11,7 @@ ADRs capture context that's easy to forget: why we chose X over Y, what constrai
 | ID | Decision | Status | Date |
 |----|----------|--------|------|
 | ADR-001 | [Example: Use Hono over Express](#adr-001-use-hono-over-express) | ✅ Accepted | 2026-01-12 |
+| ADR-002 | [Use Monorepo Structure](#adr-002-use-monorepo-structure) | ✅ Accepted | 2026-01-21 |
 
 ---
 
@@ -95,6 +96,59 @@ Use **Hono** as our web framework.
 | Express | Huge ecosystem, familiar | Dated patterns, callback-heavy, no native TS | Legacy patterns, middleware complexity |
 | Fastify | Fast, good TS support | More complex plugin system | Heavier than needed, less OpenAPI integration |
 | Koa | Clean middleware | Small ecosystem, less maintained | Not as actively developed |
+
+---
+
+## ADR-002: Use Monorepo Structure
+
+**Status**: ✅ Accepted
+**Date**: 2026-01-21
+**Deciders**: Project architecture
+
+### Context
+
+When organizing a full-stack project with frontend (client) and backend (server) components, we need to decide between a monorepo (single repository) or polyrepo (multiple repositories) approach. This decision impacts developer experience, CI/CD, code sharing, and team collaboration.
+
+### Decision
+
+Use a **monorepo structure** with separate packages for client and server, unified by shared documentation and tooling at the root level.
+
+```
+project-root/
+├── client/          # Frontend application
+├── server/          # Backend application
+├── proto/           # Shared protocol definitions (optional)
+└── docs/            # Unified documentation
+```
+
+### Consequences
+
+**Positive:**
+- **Shared tooling** - Single ESLint, TypeScript, and Prettier config across packages
+- **Atomic commits** - Frontend and backend changes in one commit, easier to track related changes
+- **Simplified dependencies** - Shared types, protocols, and utilities between packages
+- **Unified documentation** - One `docs/` folder covers the whole system
+- **Easier refactoring** - Cross-package changes are easier to coordinate
+- **Single source of truth** - Version control, issues, and PRs in one place
+- **AI-friendly** - Easier for AI assistants to understand full system context
+
+**Negative:**
+- **Larger repository size** - Clone times increase as project grows
+- **Complex CI/CD** - Need to detect which packages changed for selective builds
+- **Permission granularity** - Can't restrict access to specific packages easily
+- **Build complexity** - Need workspace-aware tooling (pnpm, npm workspaces, etc.)
+
+**Risks:**
+- Build times may increase → Mitigated by using incremental builds and caching
+- Merge conflicts in shared files → Mitigated by clear ownership and modular structure
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| Polyrepo (separate repos) | Independent versioning, granular permissions, smaller clones | Harder to coordinate changes, duplicate tooling, version drift | Coordination overhead outweighs benefits for small-medium teams |
+| Git submodules | Separate repos with linking | Complex workflows, confusing for contributors | Adds complexity without significant benefits |
+| Monolith (single package) | Simplest setup | No separation of concerns, harder to scale | Doesn't scale, mixes frontend/backend concerns |
 
 ---
 
