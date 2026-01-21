@@ -1,0 +1,97 @@
+# LinkRecap - Cursor Rules
+
+This file provides guidance to Cursor AI when working with code in this repository.
+
+## Project Overview
+
+**LinkRecap** - A mobile-first app for saving links/articles, with AI-powered tagging, summarization, and personalized weekly recaps.
+
+### Core Features
+- Mobile share-to-save: Capture links from any mobile app
+- AI content processing: Auto-read, tag, and categorize saved articles
+- Personalized digests: Weekly summaries tailored to user interests
+- Interest-based filtering: User-defined tags and high-level categories
+- Context-aware delivery: Time-based topic focus
+- Topic aggregation: Cross-article insights with links to originals
+
+## Development Methodology
+
+This project uses **Vibe Coding** - a documentation-driven approach:
+
+1. **Read `docs/PRODUCTION_ROADMAP.md` first** - Single source of truth (Current Focus section at top)
+2. **Check phase tasks** - `docs/phases/phaseN/PHASEN_TASKS.md` for detailed checkboxes
+3. **Log decisions** - Add ADRs to `docs/DECISIONS.md` for significant choices
+4. **Update progress** - Check boxes as tasks complete
+
+### Key Documents
+- `docs/PRODUCTION_ROADMAP.md` - **Single source of truth**: Current Focus + phase overview
+- `docs/TECH_STACK.md` - Technology choices with versions
+- `docs/ARCHITECTURE_GUIDE.md` - System design rationale
+- `docs/DECISIONS.md` - Architectural Decision Records
+
+## Monorepo Structure
+
+```
+project-root/
+├── client/                    # React + Vite frontend (mobile-first PWA)
+│   └── src/
+│       ├── components/        # Shared UI components
+│       ├── features/          # Feature modules
+│       └── pages/             # Route pages
+│
+├── server/                    # Node.js + Hono backend
+│   └── src/
+│       ├── api/               # REST route handlers
+│       ├── features/          # Feature modules
+│       ├── services/          # AI processing, content fetching
+│       └── jobs/              # Scheduled tasks
+│
+└── docs/                      # Documentation (phases, ADRs, architecture)
+```
+
+## Tech Stack
+
+**Frontend:** React 19.x, TypeScript, Vite, Tailwind CSS 4.x, Zustand
+**Backend:** Node.js 22+, Hono 4.x, Drizzle ORM, PostgreSQL
+**Infrastructure:** pnpm workspaces monorepo
+
+## Commands
+
+```bash
+pnpm install              # Install dependencies
+pnpm dev                  # Run all packages
+pnpm --filter client dev  # Frontend only
+pnpm --filter server dev  # Backend only
+pnpm build                # Build
+pnpm test                 # Testing
+pnpm lint                 # Linting
+pnpm --filter server db:migrate   # Run migrations
+pnpm --filter server db:generate  # Generate migration from schema
+```
+
+## Status Indicators
+
+- ✅ Complete
+- 🚧 In Progress
+- ⏳ Not Started
+- 🔴 Critical Priority
+- 🟡 Medium Priority
+- 🟢 Low Priority
+
+## Coding Preferences
+
+- Clean architectures, modular approach
+- Tailwind for styling
+- Latest stable versions
+- Avoid unnecessary duplications
+- Keep consistency across the codebase
+
+## Available Prompts
+
+See `.cursor/prompts/` for reusable prompts:
+- `start-session.md` - Load project context at session start
+- `log-decision.md` - Create an ADR in DECISIONS.md
+- `plan-phase.md` - Generate a new phase task document
+- `update-focus.md` - Update Current Focus section
+- `check-task.md` - Mark tasks as complete
+- `phase-status.md` - Show phase progress
