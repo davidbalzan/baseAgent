@@ -1,64 +1,12 @@
 # Vibe Seed
 
-> A documentation-driven project template for building software with AI assistance.
+> Documentation-driven development with persistent knowledge capture across projects.
 
 ---
 
-## 🤖 AI Agent Quick Start
-
-**What is this?** A reusable template/seed for bootstrapping new projects with structured documentation that enables effective AI pair programming.
-
-**Start here:**
-1. [`VIBE_CODING_SEED.md`](./VIBE_CODING_SEED.md) — The complete methodology guide
-2. [`docs/COMMANDS.md`](./docs/COMMANDS.md) — AI assistant commands for all IDEs
-3. [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md) — What's actively being worked on
-4. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — Architectural decision records
-
----
-
-## 📁 Repository Structure
-
-```
-vibe_seed/
-├── README.md                 ← You are here
-├── VIBE_CODING_SEED.md       ← Core methodology & document templates
-├── CURRENT_FOCUS.md          ← Active work context (session handoffs)
-│
-├── docs/
-│   ├── COMMANDS.md           ← AI assistant commands guide
-│   ├── DECISIONS.md          ← ADR (Architectural Decision Records)
-│   ├── phases/
-│   │   └── templates/        ← Reusable planning templates
-│   └── templates/
-│       └── PRD_TEMPLATE.md   ← Product requirements template
-│
-├── .claude/skills/           ← Claude Code slash commands
-├── .cursor/commands/         ← Cursor slash commands
-└── .vscode/prompts/          ← VS Code Copilot prompts
-```
-
----
-
-## 🚀 Using This Template
-
-### For a New Project
-
-1. Copy this repo structure to your new project
-2. Customize `VIBE_CODING_SEED.md` for your domain
-3. Create your phases in `docs/phases/phase1/`, `phase2/`, etc.
-4. Update `CURRENT_FOCUS.md` as you work
-5. Log major decisions in `docs/DECISIONS.md`
-
-### Key Principles
-
-- **Documentation as Code** — Plans are living documents with checkboxes
-- **Phase-Based Development** — Break work into digestible phases
-- **AI-Friendly Structure** — Clear hierarchy for context persistence
-- **Rollback Planning** — Every risky task has a contingency
+## Quick Start
 
 ### New Machine Setup
-
-When setting up on a new machine, run these commands to get your global Claude Code configuration:
 
 ```bash
 # 1. Clone vibeSeed
@@ -67,48 +15,164 @@ git clone git@github.com:davidbalzan/vibeSeed.git ~/workspace/vibeSeed
 # 2. Create global Claude directories
 mkdir -p ~/.claude/skills ~/.claude/knowledge
 
-# 3. Copy skills (including /remember)
+# 3. Copy skills and knowledge
 cp -r ~/workspace/vibeSeed/.claude/skills/* ~/.claude/skills/
-
-# 4. Copy knowledge base
 cp -r ~/workspace/vibeSeed/.claude/knowledge/* ~/.claude/knowledge/
 
-# 5. Create/update global CLAUDE.md
+# 4. Add knowledge reference to global CLAUDE.md
 cat >> ~/.claude/CLAUDE.md << 'EOF'
 
 ## Knowledge Base
 
-For domain-specific patterns and learnings, see `~/.claude/knowledge/`:
-- Reference `~/.claude/knowledge/README.md` for category index
-- Use `/remember <category>: <learning>` to add new entries
+For domain-specific patterns, see `~/.claude/knowledge/`:
+- Use `/remember <learning>` to capture new patterns
+- Use `/distill` to convert learnings into formal ADRs
 EOF
 ```
 
-This gives you:
-- `/remember` skill for capturing learnings
-- All accumulated knowledge from previous machines
-- Consistent development environment across machines
+---
+
+## Skills
+
+### `/remember` - Capture Learnings
+
+Quickly capture patterns and preferences as you work. Knowledge persists globally across all projects.
+
+**Usage:**
+```bash
+# With explicit category
+/remember typescript: Always use Zod for runtime validation
+
+# Auto-categorized (AI detects category from content)
+/remember Always use Zod for runtime validation
+```
+
+**Categories:**
+| Category | Topics |
+|----------|--------|
+| typescript | Types, Zod, generics, Hono, Drizzle |
+| react | Components, hooks, Zustand, Vite |
+| tailwind | Styling, utilities, responsive |
+| testing | Jest, Vitest, coverage, mocks |
+| architecture | Monorepo, feature-based, patterns |
+| database | SQL, PostgreSQL, migrations, indexes |
+| ai | LLMs, prompts, providers |
+| devops | Docker, CI/CD, pnpm, Scalar |
+| process | Git, phases, ADRs, workflow |
+| general | Anything else |
+
+**Where it saves:**
+- Local: `~/.claude/knowledge/<category>.md`
+- Synced: `~/workspace/vibeSeed/.claude/knowledge/` → GitHub
 
 ---
 
-## 📋 Document Types
+### `/distill` - Formalize to ADR
 
-| Document | Purpose | Update Frequency |
-|----------|---------|------------------|
-| `CURRENT_FOCUS.md` | Session context | Every work session |
-| `PHASEN_TASKS.md` | Detailed task tracking | As tasks complete |
-| `DECISIONS.md` | Why we chose X over Y | When decisions are made |
-| `ARCHITECTURE_GUIDE.md` | System design rationale | When architecture evolves |
+Convert accumulated learnings into formal Architectural Decision Records for the current project.
+
+**Usage:**
+```bash
+# Browse all categories
+/distill
+
+# List learnings from a category
+/distill typescript
+
+# Distill specific learning
+/distill Use Hono for TypeScript-first APIs
+```
+
+**Flow:**
+1. Shows learnings from knowledge base
+2. You pick one to formalize
+3. AI asks for context, alternatives, consequences
+4. Generates ADR and appends to `docs/DECISIONS.md`
+
+**ADR Format:**
+```markdown
+### ADR-001: Use Hono for TypeScript-First APIs
+
+**Date**: 2026-01-23
+**Status**: Accepted
+**Source**: Distilled from learning
+
+#### Context
+[Why this became a pattern]
+
+#### Decision
+[The formalized decision]
+
+#### Consequences
+**Positive:** [Benefits]
+**Negative:** [Trade-offs]
+
+#### Alternatives Considered
+[What else was evaluated]
+```
 
 ---
 
-## 🔗 Quick Links
+## Workflow
 
-- [Full Methodology Guide](./VIBE_CODING_SEED.md)
-- [AI Commands Guide](./docs/COMMANDS.md) — How to use `/kickstart`, `/create-prd`, etc.
-- [PRD Template](./docs/templates/PRD_TEMPLATE.md)
-- [Task Template](./docs/phases/templates/TASK_TEMPLATE.md)
+```
+Experience → /remember → Learning → /distill → ADR
+   ↓              ↓           ↓           ↓
+ Coding    Quick capture   Pattern    Formal
+ session   (seconds)       emerges    decision
+```
+
+**When to use each:**
+- `/remember` - In the moment, when you learn something useful
+- `/distill` - When a pattern is proven and should be documented for the team
 
 ---
 
-**License**: Use freely. Adapt for your needs. 🚀
+## Knowledge Structure
+
+```
+~/.claude/
+├── CLAUDE.md                    # Global preferences
+├── skills/
+│   ├── remember/SKILL.md        # /remember skill
+│   └── distill/SKILL.md         # /distill skill
+└── knowledge/
+    ├── README.md                # Category index
+    ├── typescript.md            # TypeScript learnings
+    ├── react.md                 # React learnings
+    ├── architecture.md          # Architecture learnings
+    └── ...                      # Other categories
+```
+
+---
+
+## Other Resources
+
+| Document | Purpose |
+|----------|---------|
+| [VIBE_CODING_SEED.md](./VIBE_CODING_SEED.md) | Full methodology guide |
+| [docs/COMMANDS.md](./docs/COMMANDS.md) | All AI commands for IDEs |
+| [CURRENT_FOCUS.md](./CURRENT_FOCUS.md) | Active work context |
+
+---
+
+## Syncing Knowledge
+
+Knowledge auto-syncs to this repo when using `/remember`. To manually sync:
+
+```bash
+# Push local knowledge to vibeSeed
+cp -r ~/.claude/knowledge/* ~/workspace/vibeSeed/.claude/knowledge/
+cd ~/workspace/vibeSeed
+git add .claude/knowledge
+git commit -m "knowledge: Update from $(hostname)"
+git push
+
+# Pull latest knowledge to local
+cd ~/workspace/vibeSeed && git pull
+cp -r .claude/knowledge/* ~/.claude/knowledge/
+```
+
+---
+
+**License**: Use freely. Adapt for your needs.
