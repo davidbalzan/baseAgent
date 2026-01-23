@@ -56,6 +56,39 @@ vibe_seed/
 - **AI-Friendly Structure** — Clear hierarchy for context persistence
 - **Rollback Planning** — Every risky task has a contingency
 
+### New Machine Setup
+
+When setting up on a new machine, run these commands to get your global Claude Code configuration:
+
+```bash
+# 1. Clone vibeSeed
+git clone git@github.com:davidbalzan/vibeSeed.git ~/workspace/vibeSeed
+
+# 2. Create global Claude directories
+mkdir -p ~/.claude/skills ~/.claude/knowledge
+
+# 3. Copy skills (including /remember)
+cp -r ~/workspace/vibeSeed/.claude/skills/* ~/.claude/skills/
+
+# 4. Copy knowledge base
+cp -r ~/workspace/vibeSeed/.claude/knowledge/* ~/.claude/knowledge/
+
+# 5. Create/update global CLAUDE.md
+cat >> ~/.claude/CLAUDE.md << 'EOF'
+
+## Knowledge Base
+
+For domain-specific patterns and learnings, see `~/.claude/knowledge/`:
+- Reference `~/.claude/knowledge/README.md` for category index
+- Use `/remember <category>: <learning>` to add new entries
+EOF
+```
+
+This gives you:
+- `/remember` skill for capturing learnings
+- All accumulated knowledge from previous machines
+- Consistent development environment across machines
+
 ---
 
 ## 📋 Document Types
