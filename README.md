@@ -19,7 +19,7 @@ mkdir -p ~/.claude/skills ~/.claude/knowledge
 cp -r ~/workspace/vibeSeed/.claude/skills/* ~/.claude/skills/
 cp -r ~/workspace/vibeSeed/.claude/knowledge/* ~/.claude/knowledge/
 
-# 4. Add knowledge reference to global CLAUDE.md
+# 4. Add to global CLAUDE.md
 cat >> ~/.claude/CLAUDE.md << 'EOF'
 
 ## Knowledge Base
@@ -27,12 +27,59 @@ cat >> ~/.claude/CLAUDE.md << 'EOF'
 For domain-specific patterns, see `~/.claude/knowledge/`:
 - Use `/remember <learning>` to capture new patterns
 - Use `/distill` to convert learnings into formal ADRs
+
+## Architectural Context
+
+Always check `docs/DECISIONS.md` for architectural decisions before:
+- Proposing technology changes
+- Designing new features
+- Making infrastructure choices
+
+Use `/start-session` to load project context including recent ADRs.
 EOF
 ```
 
 ---
 
 ## Skills
+
+### `/start-session` - Load Project Context
+
+Start each coding session by loading context from vibe coding docs. Reads current phase, tasks, and **consults ADRs** for architectural decisions.
+
+**Usage:**
+```bash
+# Load full context
+/start-session
+
+# Focus on specific area
+/start-session authentication
+```
+
+**What it reads:**
+1. `docs/PRODUCTION_ROADMAP.md` - Current focus section
+2. `docs/phases/phaseN/README.md` - Active phase overview
+3. `docs/phases/phaseN/PHASEN_TASKS.md` - Task breakdown
+4. `docs/DECISIONS.md` - Recent and relevant ADRs
+
+**Output:**
+```
+## Session Context
+
+**Active Phase**: Phase 2 - Authentication
+**Current Task**: JWT Middleware
+**Status**: In Progress
+
+### Recent Decisions
+- ADR-006: Scalar for API docs
+- ADR-007: BullMQ for background jobs
+
+### Suggested Next Steps
+1. Complete JWT validation
+2. Add refresh token logic
+```
+
+---
 
 ### `/remember` - Capture Learnings
 
@@ -57,7 +104,7 @@ Quickly capture patterns and preferences as you work. Knowledge persists globall
 | architecture | Monorepo, feature-based, patterns |
 | database | SQL, PostgreSQL, migrations, indexes |
 | ai | LLMs, prompts, providers |
-| devops | Docker, CI/CD, pnpm, Scalar |
+| devops | Docker, CI/CD, pnpm, Scalar, BullMQ |
 | process | Git, phases, ADRs, workflow |
 | general | Anything else |
 
@@ -79,19 +126,19 @@ Convert accumulated learnings into formal Architectural Decision Records for the
 # List learnings from a category
 /distill typescript
 
-# Distill specific learning
+# Distill specific learning (or "all" for batch)
 /distill Use Hono for TypeScript-first APIs
 ```
 
 **Flow:**
 1. Shows learnings from knowledge base
-2. You pick one to formalize
-3. AI asks for context, alternatives, consequences
+2. You pick one (or "all") to formalize
+3. AI gathers context, alternatives, consequences
 4. Generates ADR and appends to `docs/DECISIONS.md`
 
 **ADR Format:**
 ```markdown
-### ADR-001: Use Hono for TypeScript-First APIs
+### ADR-006: Use Scalar for API Documentation
 
 **Date**: 2026-01-23
 **Status**: Accepted
@@ -108,7 +155,7 @@ Convert accumulated learnings into formal Architectural Decision Records for the
 **Negative:** [Trade-offs]
 
 #### Alternatives Considered
-[What else was evaluated]
+| Alternative | Pros | Cons | Why Not |
 ```
 
 ---
@@ -116,15 +163,32 @@ Convert accumulated learnings into formal Architectural Decision Records for the
 ## Workflow
 
 ```
-Experience → /remember → Learning → /distill → ADR
-   ↓              ↓           ↓           ↓
- Coding    Quick capture   Pattern    Formal
- session   (seconds)       emerges    decision
+┌─────────────────────────────────────────────────────────────┐
+│                    KNOWLEDGE LIFECYCLE                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   /start-session                                             │
+│        ↓                                                     │
+│   ┌─────────┐     ┌──────────┐     ┌─────────┐              │
+│   │  ADRs   │ ←── │ /distill │ ←── │Learning │              │
+│   │consulted│     │ formalize│     │ emerges │              │
+│   └────┬────┘     └──────────┘     └────┬────┘              │
+│        │                                 │                   │
+│        ↓                                 │                   │
+│   ┌─────────┐                      ┌─────────┐              │
+│   │ Coding  │ ──────────────────→  │/remember│              │
+│   │ session │     experience       │ capture │              │
+│   └─────────┘                      └─────────┘              │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **When to use each:**
-- `/remember` - In the moment, when you learn something useful
-- `/distill` - When a pattern is proven and should be documented for the team
+| Skill | When | Time |
+|-------|------|------|
+| `/start-session` | Beginning of work session | 30 sec |
+| `/remember` | Learn something useful | 5 sec |
+| `/distill` | Pattern is proven, needs formal record | 2 min |
 
 ---
 
@@ -132,16 +196,28 @@ Experience → /remember → Learning → /distill → ADR
 
 ```
 ~/.claude/
-├── CLAUDE.md                    # Global preferences
+├── CLAUDE.md                    # Global preferences + ADR reference
 ├── skills/
-│   ├── remember/SKILL.md        # /remember skill
-│   └── distill/SKILL.md         # /distill skill
+│   ├── start-session/SKILL.md   # /start-session - context loader
+│   ├── remember/SKILL.md        # /remember - quick capture
+│   └── distill/SKILL.md         # /distill - formalize to ADR
 └── knowledge/
     ├── README.md                # Category index
-    ├── typescript.md            # TypeScript learnings
-    ├── react.md                 # React learnings
-    ├── architecture.md          # Architecture learnings
-    └── ...                      # Other categories
+    ├── typescript.md
+    ├── react.md
+    ├── architecture.md
+    ├── devops.md
+    ├── process.md
+    └── ...
+```
+
+**Project structure:**
+```
+your-project/
+└── docs/
+    ├── DECISIONS.md             # ADRs (consulted by /start-session)
+    ├── PRODUCTION_ROADMAP.md    # Current focus
+    └── phases/                  # Task breakdowns
 ```
 
 ---
