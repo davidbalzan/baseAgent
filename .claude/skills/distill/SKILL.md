@@ -8,6 +8,15 @@ argument-hint: "[category] or <learning text>"
 
 Convert accumulated learnings from `~/.claude/knowledge/` into formal Architectural Decision Records for the current project.
 
+## When to Use (Sparingly)
+
+Most learnings are fine as one-liners. Only distill when:
+- **Team needs the "why"** - Onboarding, justifying to stakeholders
+- **Significant trade-offs** - Decision has real costs worth documenting
+- **Might be challenged** - Someone could reasonably disagree
+
+**Don't distill** personal preferences or obvious choices. The learning is enough.
+
 ## Usage
 
 ```

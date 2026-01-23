@@ -114,9 +114,14 @@ Quickly capture patterns and preferences as you work. Knowledge persists globall
 
 ---
 
-### `/distill` - Formalize to ADR
+### `/distill` - Formalize to ADR (Use Sparingly)
 
-Convert accumulated learnings into formal Architectural Decision Records for the current project.
+Convert learnings into formal ADRs. **Most learnings don't need this** - the one-liner is enough.
+
+**Only distill when:**
+- Team needs the "why" (onboarding, stakeholders)
+- Significant trade-offs worth documenting
+- Decision might be challenged later
 
 **Usage:**
 ```bash
@@ -184,11 +189,11 @@ Convert accumulated learnings into formal Architectural Decision Records for the
 ```
 
 **When to use each:**
-| Skill | When | Time |
-|-------|------|------|
-| `/start-session` | Beginning of work session | 30 sec |
-| `/remember` | Learn something useful | 5 sec |
-| `/distill` | Pattern is proven, needs formal record | 2 min |
+| Skill | When | Frequency |
+|-------|------|-----------|
+| `/start-session` | Beginning of work session | Every session |
+| `/remember` | Learn something useful | Often (default) |
+| `/distill` | Team needs formal justification | Rarely |
 
 ---
 
