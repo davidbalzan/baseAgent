@@ -15,6 +15,7 @@ Domain-specific learnings accumulated from project experience. Reference these f
 | database | [database.md](database.md) | Database patterns and queries |
 | ai | [ai.md](ai.md) | AI integration patterns |
 | devops | [devops.md](devops.md) | Deployment and infrastructure |
+| process | [process.md](process.md) | Development workflow and methodology |
 
 ## Usage
 
@@ -25,18 +26,6 @@ These files are automatically updated via `/remember` command:
 /remember testing: Prefer integration tests for API routes
 ```
 
-## How It Works
+## Sync
 
-Knowledge is stored **globally** at `~/.claude/knowledge/` so it's available across all projects.
-
-The `/remember` skill:
-1. Appends to `~/.claude/knowledge/<category>.md`
-2. Syncs back to vibeSeed for backup/sharing
-
-## Setup for New Machines
-
-```bash
-# Copy skill and knowledge to global location
-cp -r .claude/skills/remember ~/.claude/skills/
-cp -r .claude/knowledge ~/.claude/
-```
+Knowledge is synced to [vibeSeed](https://github.com/davidbalzan/vibeSeed) for persistence across machines and new projects.
