@@ -16,6 +16,7 @@ Domain-specific learnings accumulated from project experience. Reference these f
 | ai | [ai.md](ai.md) | AI integration patterns |
 | devops | [devops.md](devops.md) | Deployment and infrastructure |
 | process | [process.md](process.md) | Development workflow and methodology |
+| godot | [godot.md](godot.md) | Godot 4.5+ game engine patterns |
 
 ## Usage
 
