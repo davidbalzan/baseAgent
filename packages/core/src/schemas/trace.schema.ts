@@ -6,6 +6,7 @@ export const TracePhaseSchema = z.enum([
   "tool_call",
   "tool_result",
   "observe",
+  "compaction",
   "finish",
   "error",
 ]);

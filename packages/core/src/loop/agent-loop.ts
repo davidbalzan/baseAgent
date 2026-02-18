@@ -4,6 +4,7 @@ import type { ToolDefinition } from "../schemas/tool.schema.js";
 import type { TraceEvent } from "../schemas/trace.schema.js";
 import { LoopEmitter } from "./loop-events.js";
 import { createLoopState, updateUsage, type LoopState } from "./loop-state.js";
+import { compactMessages, persistCompactionSummary } from "./compaction.js";
 
 export interface AgentLoopOptions {
   model: LanguageModel;
@@ -14,6 +15,8 @@ export interface AgentLoopOptions {
   timeoutMs: number;
   costCapUsd: number;
   sessionId?: string;
+  compactionThreshold?: number;
+  workspacePath?: string;
 }
 
 export interface AgentLoopResult {
@@ -69,6 +72,8 @@ export async function runAgentLoop(
     timeoutMs,
     costCapUsd,
     sessionId: providedSessionId,
+    compactionThreshold,
+    workspacePath,
   } = options;
 
   const sessionId = providedSessionId ?? randomUUID();
@@ -200,6 +205,22 @@ export async function runAgentLoop(
       }
 
       messages.push(toolResults);
+
+      // Auto-compaction: summarize history when context exceeds threshold
+      if (compactionThreshold && usage.promptTokens >= compactionThreshold) {
+        const { summary, compactedMessages } = await compactMessages(model, messages, systemPrompt);
+        messages.length = 0;
+        messages.push(...compactedMessages);
+
+        if (workspacePath) {
+          persistCompactionSummary(workspacePath, summary);
+        }
+
+        emitTrace(loopEmitter, sessionId, "compaction", state.iteration, {
+          promptTokensBefore: usage.promptTokens,
+          summaryLength: summary.length,
+        });
+      }
 
       emitTrace(loopEmitter, sessionId, "observe", state.iteration, {
         toolResultCount: toolCalls.length,

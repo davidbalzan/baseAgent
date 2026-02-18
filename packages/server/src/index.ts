@@ -136,6 +136,8 @@ async function main() {
       timeoutMs: config.agent.timeoutMs,
       costCapUsd: config.agent.costCapUsd,
       sessionId: session.id,
+      compactionThreshold: config.memory.compactionThreshold,
+      workspacePath,
     }, emitter);
 
     // Update session with results
@@ -206,6 +208,8 @@ async function main() {
         timeoutMs: config.agent.timeoutMs,
         costCapUsd: config.agent.costCapUsd,
         sessionId: session.id,
+        compactionThreshold: config.memory.compactionThreshold,
+        workspacePath,
       }, emitter);
 
       sessionRepo.updateStatus(session.id, result.state.status, result.output);
