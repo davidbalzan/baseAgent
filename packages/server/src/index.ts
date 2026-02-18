@@ -43,6 +43,7 @@ import {
 import {
   TelegramAdapter,
   DiscordAdapter,
+  SlackAdapter,
   createQueuedHandler,
   createProactiveMessenger,
   type HandleMessageFn,
@@ -403,6 +404,19 @@ async function main() {
       await discord.start();
     } catch (err) {
       console.error("[discord] Failed to start:", err);
+    }
+  }
+
+  // Slack adapter
+  const slackConfig = config.channels?.slack;
+  if (slackConfig?.enabled && slackConfig.token && slackConfig.appToken) {
+    try {
+      const slack = new SlackAdapter(slackConfig.token, slackConfig.appToken, queuedHandleMessage, slackConfig.allowedUserIds, channelLimiter);
+      adapters.push(slack);
+      adaptersByPrefix.set("slack", slack);
+      await slack.start();
+    } catch (err) {
+      console.error("[slack] Failed to start:", err);
     }
   }
 

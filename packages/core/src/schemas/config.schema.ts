@@ -35,9 +35,17 @@ const ChannelConfigSchema = z.object({
   allowedUserIds: z.array(z.string()).optional(),
 });
 
+const SlackChannelConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  token: optionalString,            // Bot token (xoxb-)
+  appToken: optionalString,         // App-level token (xapp-) for Socket Mode
+  allowedUserIds: z.array(z.string()).optional(),
+});
+
 const ChannelsConfigSchema = z.object({
   telegram: ChannelConfigSchema.optional(),
   discord: ChannelConfigSchema.optional(),
+  slack: SlackChannelConfigSchema.optional(),
 });
 
 const AgentConfigSchema = z.object({
