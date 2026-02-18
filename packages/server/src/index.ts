@@ -51,6 +51,7 @@ import {
 import { healthRoute } from "./health.js";
 import { runSession, type RunSessionDeps } from "./run-session.js";
 import { createHeartbeatScheduler, type HeartbeatScheduler } from "./heartbeat.js";
+import { createWebhookRoute } from "./webhook.js";
 import { SlidingWindowLimiter, createRateLimitMiddleware } from "./rate-limit.js";
 
 async function main() {
@@ -421,6 +422,43 @@ async function main() {
       sendProactiveMessage,
     });
     heartbeat.start();
+  }
+
+  // 10b. Webhook endpoint
+  if (config.webhook?.enabled !== false) {
+    const proactiveAdapters = adapters
+      .filter((a): a is ChannelAdapter & { sendMessage: (id: string, text: string) => Promise<void> } =>
+        typeof a.sendMessage === "function",
+      )
+      .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
+
+    const sendProactiveMessageForWebhook = proactiveAdapters.length > 0
+      ? createProactiveMessenger(proactiveAdapters)
+      : undefined;
+
+    // Webhooks run non-interactively: auto-allow all, no confirmation delegate
+    const webhookSessionDeps: RunSessionDeps = {
+      ...sessionDeps,
+      governancePolicy: { read: "auto-allow", write: "auto-allow", exec: "auto-allow" },
+      confirmationDelegate: undefined,
+    };
+
+    const webhookApp = createWebhookRoute({
+      config,
+      sessionDeps: webhookSessionDeps,
+      sendProactiveMessage: sendProactiveMessageForWebhook,
+    });
+
+    // Apply HTTP rate limiting to webhook routes
+    if (httpLimiter) {
+      const httpRateLimitMw = createRateLimitMiddleware(httpLimiter);
+      app.use("/webhook/*", httpRateLimitMw);
+    }
+
+    app.route("/", webhookApp);
+    console.log(`[webhook] Endpoint enabled at POST /webhook/:event` +
+      (config.webhook?.secret ? " (signature verification on)" : "") +
+      (config.webhook?.resultChannelId ? ` → results to ${config.webhook.resultChannelId}` : ""));
   }
 
   // 11. Graceful shutdown

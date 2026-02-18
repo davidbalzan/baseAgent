@@ -59,6 +59,12 @@ const HeartbeatConfigSchema = z.object({
   channelId: optionalString, // e.g., "telegram:12345"
 });
 
+const WebhookConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  secret: optionalString, // HMAC-SHA256 secret for signature verification
+  resultChannelId: optionalString, // e.g., "telegram:12345" — where to send results
+});
+
 const ServerConfigSchema = z.object({
   port: z.number().int().positive().default(3000),
   host: z.string().default("0.0.0.0"),
@@ -101,6 +107,7 @@ export const AppConfigSchema = z.object({
   agent: AgentConfigSchema,
   memory: MemoryConfigSchema,
   heartbeat: HeartbeatConfigSchema.optional(),
+  webhook: WebhookConfigSchema.optional(),
   server: ServerConfigSchema,
   governance: GovernanceConfigSchema.optional(),
   rateLimit: RateLimitConfigSchema.optional(),
@@ -111,3 +118,4 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 export type LlmProvider = z.infer<typeof LlmProviderSchema>;
 export type SandboxLevel = z.infer<typeof SandboxLevelSchema>;
 export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;
+export type WebhookConfig = z.infer<typeof WebhookConfigSchema>;

@@ -10,6 +10,7 @@ export type {
   LlmProvider,
   SandboxLevel,
   SandboxConfig,
+  WebhookConfig,
 } from "./schemas/config.schema.js";
 export type {
   Session,

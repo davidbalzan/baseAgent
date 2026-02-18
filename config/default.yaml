@@ -49,6 +49,11 @@ heartbeat:
   intervalMs: 1800000 # 30 min
   # channelId: "telegram:12345"
 
+# webhook:
+#   enabled: true
+#   # secret: ${WEBHOOK_SECRET}
+#   # resultChannelId: "telegram:12345"
+
 governance:
   read: auto-allow
   write: confirm
