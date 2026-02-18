@@ -1,259 +1,147 @@
-# Vibe Seed
+# baseAgent
 
-> Documentation-driven development with persistent knowledge capture across projects.
-
----
-
-## Quick Start
-
-### New Machine Setup
-
-```bash
-# 1. Clone vibeSeed
-git clone git@github.com:davidbalzan/vibeSeed.git ~/workspace/vibeSeed
-
-# 2. Create global Claude directories
-mkdir -p ~/.claude/skills ~/.claude/knowledge
-
-# 3. Copy skills and knowledge
-cp -r ~/workspace/vibeSeed/.claude/skills/* ~/.claude/skills/
-cp -r ~/workspace/vibeSeed/.claude/knowledge/* ~/.claude/knowledge/
-
-# 4. Add to global CLAUDE.md
-cat >> ~/.claude/CLAUDE.md << 'EOF'
-
-## Knowledge Base
-
-For domain-specific patterns, see `~/.claude/knowledge/`:
-- Use `/remember <learning>` to capture new patterns
-- Use `/distill` to convert learnings into formal ADRs
-
-## Architectural Context
-
-Always check `docs/DECISIONS.md` for architectural decisions before:
-- Proposing technology changes
-- Designing new features
-- Making infrastructure choices
-
-Use `/start-session` to load project context including recent ADRs.
-EOF
-```
+> An agentic application template — streaming ReAct loop, multi-channel messaging gateway, extensible tools, and Markdown-based memory. Built with the [vibeSeed](https://github.com/davidbalzan/vibeSeed) methodology.
 
 ---
 
-## Skills
+## What Is This?
 
-### `/start-session` - Load Project Context
+**baseAgent** is a general-purpose, always-on personal assistant template. It provides the foundational architecture for building agentic applications that connect to messaging platforms, run autonomous task loops, and persist context in human-readable files.
 
-Start each coding session by loading context from vibe coding docs. Reads current phase, tasks, and **consults ADRs** for architectural decisions.
+No domain-specific logic is included. Instead, baseAgent ships the **bones** — you add domain skills on top.
 
-**Usage:**
-```bash
-# Load full context
-/start-session
+### Key Differentiators
 
-# Focus on specific area
-/start-session authentication
+- **Multi-channel gateway** — single daemon handles WhatsApp, Telegram, Discord, Slack, and more via adapter plugins
+- **Streaming ReAct loop** — reason, act, observe with real-time partial output to the user
+- **Resumable tasks** — long-running tasks survive crashes and restarts (state persisted to SQLite)
+- **Editable Markdown memory** — personality (`SOUL.md`), user prefs (`USER.md`), learned facts (`MEMORY.md`) are human-readable files
+- **Heartbeat proactivity** — agent wakes on a schedule and decides what to do
+- **Extensible tool system** — drop a folder into `skills/` to add new capabilities
+
+---
+
+## Project Structure
+
 ```
-
-**What it reads:**
-1. `docs/PRODUCTION_ROADMAP.md` - Current focus section
-2. `docs/phases/phaseN/README.md` - Active phase overview
-3. `docs/phases/phaseN/PHASEN_TASKS.md` - Task breakdown
-4. `docs/DECISIONS.md` - Recent and relevant ADRs
-
-**Output:**
-```
-## Session Context
-
-**Active Phase**: Phase 2 - Authentication
-**Current Task**: JWT Middleware
-**Status**: In Progress
-
-### Recent Decisions
-- ADR-006: Scalar for API docs
-- ADR-007: BullMQ for background jobs
-
-### Suggested Next Steps
-1. Complete JWT validation
-2. Add refresh token logic
+baseAgent/
+├── docs/
+│   ├── PRD.md                  # Product Requirements Document
+│   ├── DECISIONS.md            # Architectural Decision Records
+│   ├── COMMANDS.md             # AI commands reference (all IDEs)
+│   ├── phases/                 # Phase-based task planning
+│   └── templates/              # PRD and task templates
+├── packages/
+│   ├── core/                   # Agent loop, state management
+│   ├── gateway/                # Channel adapters, message routing
+│   ├── memory/                 # Memory loading, compaction, SQLite
+│   ├── tools/                  # Built-in tool implementations
+│   └── dashboard/              # Web admin UI (v1.1+)
+├── skills/                     # User-installed extensions
+├── workspace/                  # Agent's working directory
+│   ├── SOUL.md                 # Personality & boundaries
+│   ├── USER.md                 # User preferences
+│   ├── MEMORY.md               # Auto-updated interaction summaries
+│   └── HEARTBEAT.md            # Scheduled proactive tasks
+├── config/
+│   └── default.yaml            # Runtime configuration
+├── CURRENT_FOCUS.md            # Active work context
+├── VIBE_CODING_SEED.md         # Development methodology reference
+└── TOOLS_PREFERENCE.md         # Preferred libraries & tools
 ```
 
 ---
 
-### `/remember` - Capture Learnings
+## Development Methodology
 
-Quickly capture patterns and preferences as you work. Knowledge persists globally across all projects.
+This project uses **Vibe Coding** — a documentation-driven approach for building software with AI assistance. See [VIBE_CODING_SEED.md](./VIBE_CODING_SEED.md) for the full methodology.
 
-**Usage:**
-```bash
-# With explicit category
-/remember typescript: Always use Zod for runtime validation
-
-# Auto-categorized (AI detects category from content)
-/remember Always use Zod for runtime validation
-```
-
-**Categories:**
-| Category | Topics |
-|----------|--------|
-| typescript | Types, Zod, generics, Hono, Drizzle |
-| react | Components, hooks, Zustand, Vite |
-| tailwind | Styling, utilities, responsive |
-| testing | Jest, Vitest, coverage, mocks |
-| architecture | Monorepo, feature-based, patterns |
-| database | SQL, PostgreSQL, migrations, indexes |
-| ai | LLMs, prompts, providers |
-| devops | Docker, CI/CD, pnpm, Scalar, BullMQ |
-| process | Git, phases, ADRs, workflow |
-| general | Anything else |
-
-**Where it saves:**
-- Local: `~/.claude/knowledge/<category>.md`
-- Synced: `~/workspace/vibeSeed/.claude/knowledge/` → GitHub
-
----
-
-### `/distill` - Formalize to ADR (Use Sparingly)
-
-Convert learnings into formal ADRs. **Most learnings don't need this** - the one-liner is enough.
-
-**Only distill when:**
-- Team needs the "why" (onboarding, stakeholders)
-- Significant trade-offs worth documenting
-- Decision might be challenged later
-
-**Usage:**
-```bash
-# Browse all categories
-/distill
-
-# List learnings from a category
-/distill typescript
-
-# Distill specific learning (or "all" for batch)
-/distill Use Hono for TypeScript-first APIs
-```
-
-**Flow:**
-1. Shows learnings from knowledge base
-2. You pick one (or "all") to formalize
-3. AI gathers context, alternatives, consequences
-4. Generates ADR and appends to `docs/DECISIONS.md`
-
-**ADR Format:**
-```markdown
-### ADR-006: Use Scalar for API Documentation
-
-**Date**: 2026-01-23
-**Status**: Accepted
-**Source**: Distilled from learning
-
-#### Context
-[Why this became a pattern]
-
-#### Decision
-[The formalized decision]
-
-#### Consequences
-**Positive:** [Benefits]
-**Negative:** [Trade-offs]
-
-#### Alternatives Considered
-| Alternative | Pros | Cons | Why Not |
-```
-
----
-
-## Workflow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    KNOWLEDGE LIFECYCLE                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│   /start-session                                             │
-│        ↓                                                     │
-│   ┌─────────┐     ┌──────────┐     ┌─────────┐              │
-│   │  ADRs   │ ←── │ /distill │ ←── │Learning │              │
-│   │consulted│     │ formalize│     │ emerges │              │
-│   └────┬────┘     └──────────┘     └────┬────┘              │
-│        │                                 │                   │
-│        ↓                                 │                   │
-│   ┌─────────┐                      ┌─────────┐              │
-│   │ Coding  │ ──────────────────→  │/remember│              │
-│   │ session │     experience       │ capture │              │
-│   └─────────┘                      └─────────┘              │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**When to use each:**
-| Skill | When | Frequency |
-|-------|------|-----------|
-| `/start-session` | Beginning of work session | Every session |
-| `/remember` | Learn something useful | Often (default) |
-| `/distill` | Team needs formal justification | Rarely |
-
----
-
-## Knowledge Structure
-
-```
-~/.claude/
-├── CLAUDE.md                    # Global preferences + ADR reference
-├── skills/
-│   ├── start-session/SKILL.md   # /start-session - context loader
-│   ├── remember/SKILL.md        # /remember - quick capture
-│   └── distill/SKILL.md         # /distill - formalize to ADR
-└── knowledge/
-    ├── README.md                # Category index
-    ├── typescript.md
-    ├── react.md
-    ├── architecture.md
-    ├── devops.md
-    ├── process.md
-    └── ...
-```
-
-**Project structure:**
-```
-your-project/
-└── docs/
-    ├── DECISIONS.md             # ADRs (consulted by /start-session)
-    ├── PRODUCTION_ROADMAP.md    # Current focus
-    └── phases/                  # Task breakdowns
-```
-
----
-
-## Other Resources
+### Key Documents
 
 | Document | Purpose |
 |----------|---------|
-| [VIBE_CODING_SEED.md](./VIBE_CODING_SEED.md) | Full methodology guide |
-| [docs/COMMANDS.md](./docs/COMMANDS.md) | All AI commands for IDEs |
-| [CURRENT_FOCUS.md](./CURRENT_FOCUS.md) | Active work context |
+| [docs/PRD.md](./docs/PRD.md) | Full product requirements and phasing |
+| [docs/DECISIONS.md](./docs/DECISIONS.md) | Architectural Decision Records |
+| [CURRENT_FOCUS.md](./CURRENT_FOCUS.md) | Active work context for AI handoffs |
+| [docs/COMMANDS.md](./docs/COMMANDS.md) | All AI commands for Claude Code, Cursor, VS Code |
+
+### Workflow
+
+```
+/start-session → [code] → /check-task → /update-focus → /log-decision
+```
+
+See [docs/COMMANDS.md](./docs/COMMANDS.md) for all available AI commands across IDEs.
 
 ---
 
-## Syncing Knowledge
+## Tech Stack (Proposed)
 
-Knowledge auto-syncs to this repo when using `/remember`. To manually sync:
+> Final decisions tracked in [docs/DECISIONS.md](./docs/DECISIONS.md)
+
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| Runtime | Node.js 22+ / TypeScript | TBD — language decision open |
+| Database | SQLite | Zero-dep, single-file persistence |
+| Web Framework | Hono 4.x | Lightweight, TypeScript-first |
+| LLM Provider | Claude (Anthropic) | Multi-provider abstraction planned |
+| Package Manager | pnpm | Monorepo workspaces |
+| Styling (Dashboard) | Tailwind CSS 4.x | For any web UI components |
+| Sandbox | Docker | For shell/code execution tools |
+
+---
+
+## Roadmap
+
+### v1.0 — Core Foundations
+- Streaming ReAct agent loop with resumability
+- Multi-channel gateway (Telegram, Discord, WhatsApp)
+- 12+ built-in tool primitives
+- Markdown memory system with auto-compaction
+- Heartbeat scheduler for proactive behavior
+
+### v1.1 — Polish
+- Model provider abstraction (OpenAI, Anthropic, Ollama, etc.)
+- Enhanced sandboxing
+- Webhook triggers
+- Trace replay UI
+
+### v1.2 — Multi-Agent
+- Sub-agent spawning and delegation
+- Agent routing via @mentions
+- Web admin dashboard
+
+See [docs/PRD.md](./docs/PRD.md) for detailed requirements and milestones.
+
+---
+
+## Getting Started
+
+> *Project scaffolding not yet implemented. This section will be updated as v1.0 development begins.*
 
 ```bash
-# Push local knowledge to vibeSeed
-cp -r ~/.claude/knowledge/* ~/workspace/vibeSeed/.claude/knowledge/
-cd ~/workspace/vibeSeed
-git add .claude/knowledge
-git commit -m "knowledge: Update from $(hostname)"
-git push
+# Clone the repo
+git clone git@github.com:davidbalzan/baseAgent.git
+cd baseAgent
 
-# Pull latest knowledge to local
-cd ~/workspace/vibeSeed && git pull
-cp -r .claude/knowledge/* ~/.claude/knowledge/
+# Start a coding session
+/start-session
 ```
 
 ---
 
-**License**: Use freely. Adapt for your needs.
+## Knowledge & Skills
+
+This project inherits the vibeSeed knowledge capture system:
+
+```
+~/.claude/
+├── skills/           # AI workflow skills (/start-session, /remember, /distill, etc.)
+└── knowledge/        # Persistent learnings across all projects
+```
+
+Use `/remember` to capture patterns as you build. Use `/distill` sparingly to formalize decisions into ADRs.
+
+---
+
+**License**: Proprietary. All rights reserved.

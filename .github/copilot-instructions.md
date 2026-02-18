@@ -1,36 +1,42 @@
-# Vibe Coding Project - Copilot Instructions
+# baseAgent - Copilot Instructions
 
-This project uses **Vibe Coding** - a documentation-driven approach for building software with AI assistance.
+This project is **baseAgent** — an agentic application template with a streaming ReAct loop, multi-channel messaging gateway, extensible tools, and Markdown-based memory.
 
 ## Project Structure
 
 ```
-project-root/
+baseAgent/
 ├── docs/
-│   ├── PRODUCTION_ROADMAP.md  ← Single source of truth (Current Focus at top)
-│   ├── DECISIONS.md           ← Architectural Decision Records
-│   ├── TECH_STACK.md          ← Technology choices
-│   ├── ARCHITECTURE_GUIDE.md  ← System design rationale
-│   └── phases/                ← Phase-based task planning
-├── client/                    ← Frontend (React + Vite)
-├── server/                    ← Backend (Node.js + Hono)
+│   ├── PRD.md                ← Full product requirements
+│   ├── DECISIONS.md          ← Architectural Decision Records
+│   └── phases/               ← Phase-based task planning
+├── packages/
+│   ├── core/                 ← Agent loop, state management
+│   ├── gateway/              ← Channel adapters (WhatsApp, Telegram, Discord, Slack)
+│   ├── memory/               ← Memory loading, compaction, SQLite
+│   ├── tools/                ← Built-in tool implementations
+│   └── dashboard/            ← Web admin UI (v1.1+)
+├── skills/                   ← User-installed extensions
+├── workspace/                ← Agent's working directory (SOUL.md, USER.md, etc.)
+├── config/                   ← Runtime configuration
 └── CURRENT_FOCUS.md          ← Quick session context
 ```
 
 ## Key Documents to Read First
 
 1. **CURRENT_FOCUS.md** - What's actively being worked on
-2. **docs/PRODUCTION_ROADMAP.md** - Overall project status
-3. **docs/phases/phaseN/PHASEN_TASKS.md** - Detailed task breakdowns
+2. **docs/PRD.md** - Full product requirements and phasing
+3. **docs/DECISIONS.md** - Architectural decisions and rationale
+4. **docs/phases/phaseN/PHASEN_TASKS.md** - Detailed task breakdowns
 
 ## Status Indicators
 
-- ✅ Complete
-- 🚧 In Progress  
-- ⏳ Not Started
-- 🔴 Critical Priority
-- 🟡 Medium Priority
-- 🟢 Low Priority
+- Complete
+- In Progress
+- Not Started
+- Critical Priority
+- Medium Priority
+- Low Priority
 
 ## Task Checkbox Format
 
@@ -48,8 +54,10 @@ project-root/
 
 ## Coding Preferences
 
-- Clean architectures, modular approach
-- Tailwind CSS for styling
+- Clean architectures, modular approach structured for AI context efficiency
+- Tailwind CSS for styling (dashboard UI)
 - Latest stable versions of dependencies
+- Streaming-first design — every layer supports partial output
+- Adapter pattern for I/O (channels, LLM providers, tools)
 - Avoid unnecessary code duplication
 - Maintain consistency across the codebase

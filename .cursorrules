@@ -1,90 +1,95 @@
-# LinkRecap - Cursor Rules
+# baseAgent - Cursor Rules
 
 This file provides guidance to Cursor AI when working with code in this repository.
 
 ## Project Overview
 
-**LinkRecap** - A mobile-first app for saving links/articles, with AI-powered tagging, summarization, and personalized weekly recaps.
+**baseAgent** — An agentic application template with a streaming ReAct loop, multi-channel messaging gateway, extensible tool system, and Markdown-based persistent memory. Built as a foundation for personal AI assistant applications.
 
-### Core Features
-- Mobile share-to-save: Capture links from any mobile app
-- AI content processing: Auto-read, tag, and categorize saved articles
-- Personalized digests: Weekly summaries tailored to user interests
-- Interest-based filtering: User-defined tags and high-level categories
-- Context-aware delivery: Time-based topic focus
-- Topic aggregation: Cross-article insights with links to originals
+### Core Subsystems
+- **Agent Loop**: Streaming ReAct-style loop (reason → tool calls → observe → repeat) with resumability
+- **Multi-Channel Gateway**: Unified adapter interface for WhatsApp, Telegram, Discord, Slack
+- **Memory System**: Markdown files (SOUL.md, USER.md, MEMORY.md) + SQLite for structured data
+- **Tool System**: Extensible primitives (file I/O, shell, browser, web search, calendar, email)
+- **Proactivity Engine**: Heartbeat scheduler, webhooks, background pollers
 
 ## Development Methodology
 
-This project uses **Vibe Coding** - a documentation-driven approach:
+This project uses **Vibe Coding** — a documentation-driven approach:
 
-1. **Read `docs/PRODUCTION_ROADMAP.md` first** - Single source of truth (Current Focus section at top)
-2. **Check phase tasks** - `docs/phases/phaseN/PHASEN_TASKS.md` for detailed checkboxes
-3. **Log decisions** - Add ADRs to `docs/DECISIONS.md` for significant choices
-4. **Update progress** - Check boxes as tasks complete
+1. **Read `CURRENT_FOCUS.md` first** - Quick context on active work
+2. **Check `docs/PRD.md`** - Full product requirements and phasing
+3. **Check phase tasks** - `docs/phases/phaseN/PHASEN_TASKS.md` for detailed checkboxes
+4. **Log decisions** - Add ADRs to `docs/DECISIONS.md` for significant choices
+5. **Update progress** - Check boxes as tasks complete
 
 ### Key Documents
-- `docs/PRODUCTION_ROADMAP.md` - **Single source of truth**: Current Focus + phase overview
-- `docs/TECH_STACK.md` - Technology choices with versions
-- `docs/ARCHITECTURE_GUIDE.md` - System design rationale
+- `CURRENT_FOCUS.md` - **Active work context** for AI handoffs
+- `docs/PRD.md` - Product requirements and milestones
 - `docs/DECISIONS.md` - Architectural Decision Records
 
 ## Monorepo Structure
 
 ```
-project-root/
-├── client/                    # React + Vite frontend (mobile-first PWA)
-│   └── src/
-│       ├── components/        # Shared UI components
-│       ├── features/          # Feature modules
-│       └── pages/             # Route pages
-│
-├── server/                    # Node.js + Hono backend
-│   └── src/
-│       ├── api/               # REST route handlers
-│       ├── features/          # Feature modules
-│       ├── services/          # AI processing, content fetching
-│       └── jobs/              # Scheduled tasks
-│
-└── docs/                      # Documentation (phases, ADRs, architecture)
+baseAgent/
+├── packages/
+│   ├── core/               # Agent loop, state management
+│   │   └── src/
+│   │       ├── loop/       # ReAct loop implementation
+│   │       ├── state/      # Session & state persistence
+│   │       └── config/     # Configuration loading
+│   ├── gateway/            # Channel adapters, message routing
+│   │   └── src/
+│   │       ├── adapters/   # WhatsApp, Telegram, Discord, Slack
+│   │       ├── router/     # Message routing & queuing
+│   │       └── types/      # Shared gateway types
+│   ├── memory/             # Memory loading, compaction, SQLite
+│   │   └── src/
+│   │       ├── markdown/   # .md file loading & parsing
+│   │       ├── sqlite/     # Structured data persistence
+│   │       └── compaction/ # Auto-summarization
+│   ├── tools/              # Built-in tool implementations
+│   │   └── src/
+│   │       ├── primitives/ # file, shell, browser, web, etc.
+│   │       ├── registry/   # Tool loading & schema management
+│   │       └── sandbox/    # Execution sandboxing
+│   └── dashboard/          # Web admin UI (v1.1+)
+├── skills/                 # User-installed extensions
+├── workspace/              # Agent's working directory (memory files)
+├── config/                 # Runtime configuration
+└── docs/                   # Documentation & methodology
 ```
 
 ## Tech Stack
 
-**Frontend:** React 19.x, TypeScript, Vite, Tailwind CSS 4.x, Zustand
-**Backend:** Node.js 22+, Hono 4.x, Drizzle ORM, PostgreSQL
+> Decisions tracked in `docs/DECISIONS.md` — some still open
+
+**Runtime:** Node.js 22+ / TypeScript (proposed)
+**Database:** SQLite (via better-sqlite3 or Drizzle)
+**Web Framework:** Hono 4.x
+**LLM Provider:** Claude (Anthropic) with multi-provider abstraction
 **Infrastructure:** pnpm workspaces monorepo
-
-## Commands
-
-```bash
-pnpm install              # Install dependencies
-pnpm dev                  # Run all packages
-pnpm --filter client dev  # Frontend only
-pnpm --filter server dev  # Backend only
-pnpm build                # Build
-pnpm test                 # Testing
-pnpm lint                 # Linting
-pnpm --filter server db:migrate   # Run migrations
-pnpm --filter server db:generate  # Generate migration from schema
-```
+**Styling (Dashboard):** Tailwind CSS 4.x
 
 ## Status Indicators
 
-- ✅ Complete
-- 🚧 In Progress
-- ⏳ Not Started
-- 🔴 Critical Priority
-- 🟡 Medium Priority
-- 🟢 Low Priority
+- Complete
+- In Progress
+- Not Started
+- Critical Priority
+- Medium Priority
+- Low Priority
 
 ## Coding Preferences
 
-- Clean architectures, modular approach
+- Clean architectures, modular approach structured for AI context efficiency
 - Tailwind for styling
 - Latest stable versions
+- Favor monorepos
 - Avoid unnecessary duplications
 - Keep consistency across the codebase
+- Streaming-first design — every layer supports partial output
+- Adapter pattern for I/O (channels, LLM providers, tools)
 
 ## Available Prompts
 

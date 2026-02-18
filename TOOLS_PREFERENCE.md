@@ -1,7 +1,12 @@
 # Must Haves
 
-SCALAR - For documenting the openapi
+SQLite - Zero-dependency persistence for sessions, traces, and structured data
+Hono - Lightweight TypeScript-first web framework for webhook/health endpoints
+LiteLLM or equivalent - Multi-provider LLM abstraction (OpenAI, Anthropic, Ollama)
 
 # Optional depending on needs
 
-BullMQ - for when the system requires to run non trivial background processes
+BullMQ - For background job processing and heartbeat scheduling
+Scalar - For documenting any REST/webhook API endpoints
+Puppeteer/Playwright - For headless browser automation tools
+Docker SDK - For sandboxed shell/code execution
