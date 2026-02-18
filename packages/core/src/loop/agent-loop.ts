@@ -1,0 +1,243 @@
+import { randomUUID } from "node:crypto";
+import { streamText, type LanguageModel, type CoreMessage, type CoreTool } from "ai";
+import type { ToolDefinition } from "../schemas/tool.schema.js";
+import type { TraceEvent } from "../schemas/trace.schema.js";
+import { LoopEmitter } from "./loop-events.js";
+import { createLoopState, updateUsage, type LoopState } from "./loop-state.js";
+
+export interface AgentLoopOptions {
+  model: LanguageModel;
+  systemPrompt: string;
+  tools: Record<string, ToolDefinition>;
+  executeTool: (name: string, args: Record<string, unknown>) => Promise<{ result: string; error?: string; durationMs: number }>;
+  maxIterations: number;
+  timeoutMs: number;
+  costCapUsd: number;
+  sessionId?: string;
+}
+
+export interface AgentLoopResult {
+  sessionId: string;
+  output: string;
+  state: LoopState;
+}
+
+function toolsToSdkFormat(tools: Record<string, ToolDefinition>): Record<string, CoreTool> {
+  const sdkTools: Record<string, CoreTool> = {};
+  for (const [name, def] of Object.entries(tools)) {
+    sdkTools[name] = {
+      description: def.description,
+      parameters: def.parameters,
+    };
+  }
+  return sdkTools;
+}
+
+function emitTrace(
+  emitter: LoopEmitter,
+  sessionId: string,
+  phase: TraceEvent["phase"],
+  iteration: number,
+  data?: Record<string, unknown>,
+  tokens?: { prompt: number; completion: number; cost: number },
+): void {
+  const event: TraceEvent = {
+    id: randomUUID(),
+    sessionId,
+    phase,
+    iteration,
+    data,
+    promptTokens: tokens?.prompt,
+    completionTokens: tokens?.completion,
+    costUsd: tokens?.cost,
+    timestamp: new Date().toISOString(),
+  };
+  emitter.emit("trace", event);
+}
+
+export async function runAgentLoop(
+  input: string,
+  options: AgentLoopOptions,
+  emitter?: LoopEmitter,
+): Promise<AgentLoopResult> {
+  const {
+    model,
+    systemPrompt,
+    tools,
+    executeTool,
+    maxIterations,
+    timeoutMs,
+    costCapUsd,
+    sessionId: providedSessionId,
+  } = options;
+
+  const sessionId = providedSessionId ?? randomUUID();
+  const loopEmitter = emitter ?? new LoopEmitter();
+  const state = createLoopState();
+  state.status = "running";
+
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+
+  const messages: CoreMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: input },
+  ];
+
+  const sdkTools = toolsToSdkFormat(tools);
+  let finalOutput = "";
+
+  emitTrace(loopEmitter, sessionId, "session_start", 0, { input });
+
+  try {
+    while (state.iteration < maxIterations && state.estimatedCostUsd < costCapUsd) {
+      state.iteration++;
+
+      const response = streamText({
+        model,
+        messages,
+        tools: sdkTools,
+        abortSignal: abortController.signal,
+      });
+
+      let iterationText = "";
+      const toolCalls: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }> = [];
+
+      for await (const part of response.fullStream) {
+        if (abortController.signal.aborted) break;
+
+        switch (part.type) {
+          case "text-delta":
+            iterationText += part.textDelta;
+            loopEmitter.emit("text_delta", part.textDelta);
+            break;
+
+          case "tool-call":
+            toolCalls.push({
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              args: part.args as Record<string, unknown>,
+            });
+            loopEmitter.emit("tool_call", {
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              args: part.args as Record<string, unknown>,
+            });
+            break;
+        }
+      }
+
+      const usage = await response.usage;
+      updateUsage(state, usage.promptTokens, usage.completionTokens);
+
+      emitTrace(loopEmitter, sessionId, "reason", state.iteration, {
+        text: iterationText,
+        toolCallCount: toolCalls.length,
+      }, {
+        prompt: usage.promptTokens,
+        completion: usage.completionTokens,
+        cost: state.estimatedCostUsd,
+      });
+
+      // Append assistant response to message history
+      const responseMessages = await response.response;
+      messages.push(...responseMessages.messages);
+
+      const finishReason = await response.finishReason;
+
+      if (finishReason !== "tool-calls" || toolCalls.length === 0) {
+        finalOutput = iterationText;
+        break;
+      }
+
+      // Check for finish tool
+      const finishCall = toolCalls.find((tc) => tc.toolName === "finish");
+      if (finishCall) {
+        finalOutput = (finishCall.args as { summary?: string }).summary ?? iterationText;
+        emitTrace(loopEmitter, sessionId, "finish", state.iteration, {
+          summary: finalOutput,
+        });
+        break;
+      }
+
+      // Execute tools sequentially
+      const toolResults: CoreMessage = {
+        role: "tool" as const,
+        content: [],
+      };
+
+      for (const tc of toolCalls) {
+        emitTrace(loopEmitter, sessionId, "tool_call", state.iteration, {
+          toolName: tc.toolName,
+          args: tc.args,
+        });
+
+        const execResult = await executeTool(tc.toolName, tc.args);
+
+        loopEmitter.emit("tool_result", {
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          result: execResult.result,
+          error: execResult.error,
+          durationMs: execResult.durationMs,
+        });
+
+        emitTrace(loopEmitter, sessionId, "tool_result", state.iteration, {
+          toolName: tc.toolName,
+          result: execResult.result,
+          error: execResult.error,
+          durationMs: execResult.durationMs,
+        });
+
+        (toolResults.content as Array<{ type: "tool-result"; toolCallId: string; toolName: string; result: string }>).push({
+          type: "tool-result",
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          result: execResult.error
+            ? `Error: ${execResult.error}`
+            : execResult.result,
+        });
+      }
+
+      messages.push(toolResults);
+
+      emitTrace(loopEmitter, sessionId, "observe", state.iteration, {
+        toolResultCount: toolCalls.length,
+      });
+    }
+
+    // Determine final status
+    if (state.iteration >= maxIterations) {
+      state.status = "completed";
+      if (!finalOutput) finalOutput = "Reached maximum iterations.";
+    } else if (state.estimatedCostUsd >= costCapUsd) {
+      state.status = "cost_limit";
+      if (!finalOutput) finalOutput = "Cost cap reached.";
+    } else {
+      state.status = "completed";
+    }
+  } catch (err) {
+    if (abortController.signal.aborted) {
+      state.status = "timeout";
+      finalOutput = "Session timed out.";
+    } else {
+      state.status = "failed";
+      finalOutput = err instanceof Error ? err.message : "Unknown error";
+      loopEmitter.emit("error", err instanceof Error ? err : new Error(String(err)));
+    }
+    emitTrace(loopEmitter, sessionId, "error", state.iteration, {
+      error: finalOutput,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  emitTrace(loopEmitter, sessionId, "finish", state.iteration, {
+    output: finalOutput,
+    ...state,
+  });
+
+  loopEmitter.emit("finish", finalOutput);
+
+  return { sessionId, output: finalOutput, state };
+}
