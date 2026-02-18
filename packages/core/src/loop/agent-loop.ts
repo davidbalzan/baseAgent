@@ -4,7 +4,7 @@ import type { ToolDefinition } from "../schemas/tool.schema.js";
 import type { TraceEvent } from "../schemas/trace.schema.js";
 import { LoopEmitter } from "./loop-events.js";
 import { createLoopState, updateUsage, type LoopState } from "./loop-state.js";
-import { compactMessages, persistCompactionSummary } from "./compaction.js";
+import { compactMessages, persistCompactionSummary, decayToolOutputs, type ToolMessageMeta } from "./compaction.js";
 
 export interface AgentLoopOptions {
   model: LanguageModel;
@@ -17,6 +17,8 @@ export interface AgentLoopOptions {
   sessionId?: string;
   compactionThreshold?: number;
   workspacePath?: string;
+  toolOutputDecayIterations?: number;
+  toolOutputDecayThresholdChars?: number;
 }
 
 export interface AgentLoopResult {
@@ -74,6 +76,8 @@ export async function runAgentLoop(
     sessionId: providedSessionId,
     compactionThreshold,
     workspacePath,
+    toolOutputDecayIterations,
+    toolOutputDecayThresholdChars,
   } = options;
 
   const sessionId = providedSessionId ?? randomUUID();
@@ -91,6 +95,7 @@ export async function runAgentLoop(
 
   const sdkTools = toolsToSdkFormat(tools);
   let finalOutput = "";
+  const toolMessageMeta: ToolMessageMeta[] = [];
 
   emitTrace(loopEmitter, sessionId, "session_start", 0, { input });
 
@@ -205,12 +210,25 @@ export async function runAgentLoop(
       }
 
       messages.push(toolResults);
+      toolMessageMeta.push({ messageIndex: messages.length - 1, iteration: state.iteration });
+
+      // Decay old tool outputs (cheap, no LLM call)
+      if (toolOutputDecayIterations) {
+        decayToolOutputs(
+          messages,
+          toolMessageMeta,
+          state.iteration,
+          toolOutputDecayIterations,
+          toolOutputDecayThresholdChars ?? 500,
+        );
+      }
 
       // Auto-compaction: summarize history when context exceeds threshold
       if (compactionThreshold && usage.promptTokens >= compactionThreshold) {
         const { summary, compactedMessages } = await compactMessages(model, messages, systemPrompt);
         messages.length = 0;
         messages.push(...compactedMessages);
+        toolMessageMeta.length = 0;
 
         if (workspacePath) {
           persistCompactionSummary(workspacePath, summary);

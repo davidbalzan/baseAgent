@@ -32,6 +32,8 @@ agent:
 memory:
   compactionThreshold: 4000
   maxTokenBudget: 8000
+  toolOutputDecayIterations: 3
+  toolOutputDecayThresholdChars: 500
 
 heartbeat:
   intervalMs: 3600000 # 1 hour

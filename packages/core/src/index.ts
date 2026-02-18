@@ -37,4 +37,5 @@ export { createLoopState, updateUsage } from "./loop/loop-state.js";
 export type { LoopState } from "./loop/loop-state.js";
 export { runAgentLoop } from "./loop/agent-loop.js";
 export type { AgentLoopOptions, AgentLoopResult } from "./loop/agent-loop.js";
-export { compactMessages, persistCompactionSummary } from "./loop/compaction.js";
+export { compactMessages, persistCompactionSummary, decayToolOutputs } from "./loop/compaction.js";
+export type { ToolMessageMeta } from "./loop/compaction.js";

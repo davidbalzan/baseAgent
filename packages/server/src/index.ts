@@ -138,6 +138,8 @@ async function main() {
       sessionId: session.id,
       compactionThreshold: config.memory.compactionThreshold,
       workspacePath,
+      toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
+      toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
     }, emitter);
 
     // Update session with results
@@ -210,6 +212,8 @@ async function main() {
         sessionId: session.id,
         compactionThreshold: config.memory.compactionThreshold,
         workspacePath,
+        toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
+        toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
       }, emitter);
 
       sessionRepo.updateStatus(session.id, result.state.status, result.output);

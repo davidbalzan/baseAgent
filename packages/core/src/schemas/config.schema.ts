@@ -41,6 +41,8 @@ const AgentConfigSchema = z.object({
 const MemoryConfigSchema = z.object({
   compactionThreshold: z.number().int().positive().default(4000),
   maxTokenBudget: z.number().int().positive().default(8000),
+  toolOutputDecayIterations: z.number().int().positive().default(3),
+  toolOutputDecayThresholdChars: z.number().int().positive().default(500),
 });
 
 const HeartbeatConfigSchema = z.object({
