@@ -22,4 +22,5 @@ export interface ChannelAdapter {
   start(): Promise<void>;
   stop(): Promise<void>;
   sendMessage?(channelId: string, text: string): Promise<void>;
+  requestConfirmation?(channelId: string, prompt: string, timeoutMs?: number): Promise<{ approved: boolean; reason?: string }>;
 }

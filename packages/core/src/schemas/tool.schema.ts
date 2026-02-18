@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const ToolPermissionSchema = z.enum(["read", "write", "exec"]);
+export type ToolPermission = z.infer<typeof ToolPermissionSchema>;
+
 export interface ToolDefinition<TParams extends z.ZodTypeAny = z.ZodTypeAny> {
   name: string;
   description: string;
@@ -7,6 +10,7 @@ export interface ToolDefinition<TParams extends z.ZodTypeAny = z.ZodTypeAny> {
   execute: (args: z.infer<TParams>) => Promise<string>;
   timeoutMs?: number;
   maxOutputChars?: number;
+  permission?: ToolPermission;
 }
 
 export const ToolCallSchema = z.object({

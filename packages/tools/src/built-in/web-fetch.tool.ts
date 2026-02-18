@@ -38,6 +38,7 @@ export function createWebFetchTool(): ToolDefinition<typeof parameters> {
     description:
       "Fetch a URL and return its content. HTML pages are converted to Markdown. JSON is prettified. Other text is returned raw.",
     parameters,
+    permission: "read",
     timeoutMs: 30_000,
     maxOutputChars: 50_000,
     execute: async (args) => {

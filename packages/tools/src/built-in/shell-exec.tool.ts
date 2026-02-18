@@ -26,6 +26,7 @@ export function createShellExecTool(workspacePath: string): ToolDefinition<typeo
     description:
       "Execute a shell command in the workspace directory. The command runs with a filtered environment (no API keys). Use for build tools, git, package managers, etc.",
     parameters,
+    permission: "exec",
     timeoutMs: 60_000,
     maxOutputChars: 20_000,
     execute: async (args) => {

@@ -17,6 +17,7 @@ export function createMemoryReadTool(workspacePath: string): ToolDefinition<type
     description:
       "Read the contents of one of the agent's memory files. Available files: SOUL.md (personality & boundaries), USER.md (user preferences), MEMORY.md (accumulated context), HEARTBEAT.md (scheduled tasks).",
     parameters,
+    permission: "read",
     execute: async (args) => {
       const filePath = resolve(workspacePath, args.filename);
 

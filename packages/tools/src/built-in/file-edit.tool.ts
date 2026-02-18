@@ -25,6 +25,7 @@ export function createFileEditTool(workspacePath: string): ToolDefinition<typeof
     description:
       "Edit an existing file by replacing an exact string match. The old_string must appear exactly once in the file. Read the file first to get current content before editing.",
     parameters,
+    permission: "write",
     timeoutMs: 5_000,
     execute: async (args) => {
       const filePath = resolveWorkspacePath(workspacePath, args.path);

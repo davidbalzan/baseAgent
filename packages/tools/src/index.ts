@@ -13,6 +13,10 @@ export { createShellExecTool } from "./built-in/shell-exec.tool.js";
 export { createWebFetchTool } from "./built-in/web-fetch.tool.js";
 export { createWebSearchTool } from "./built-in/web-search.tool.js";
 
+// Governance
+export { createGovernedExecutor } from "./governance.js";
+export type { GovernancePolicy, ConfirmationDelegate, ToolPolicy, GovernanceOptions, GovernanceRateLimiter } from "./governance.js";
+
 // Skill loader
 export { loadSkills } from "./skill-loader.js";
 export type { SkillContext, LoadSkillsResult } from "./skill-loader.js";

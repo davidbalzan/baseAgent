@@ -31,6 +31,7 @@ export function createFileListTool(workspacePath: string): ToolDefinition<typeof
     description:
       "List files and directories in the workspace. Shows type indicators [DIR]/[FILE] and file sizes. Use recursive=true for deep listing (capped at 500 entries).",
     parameters,
+    permission: "read",
     timeoutMs: 5_000,
     maxOutputChars: 20_000,
     execute: async (args) => {

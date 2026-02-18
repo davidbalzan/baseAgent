@@ -12,6 +12,7 @@ export const finishTool: ToolDefinition<typeof parameters> = {
   description:
     "Signal that the current task is complete. Call this when you have finished fulfilling the user's request. Provide a summary of what was accomplished.",
   parameters,
+  permission: "read",
   execute: async (args) => {
     // The loop intercepts this tool — execute is a no-op fallback
     return args.summary;

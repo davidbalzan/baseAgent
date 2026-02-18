@@ -27,6 +27,7 @@ export function createFileReadTool(workspacePath: string): ToolDefinition<typeof
     description:
       "Read the contents of a file in the workspace. Supports line-based offset/limit for large files. Returns an error for binary files.",
     parameters,
+    permission: "read",
     timeoutMs: 5_000,
     maxOutputChars: 50_000,
     execute: async (args) => {

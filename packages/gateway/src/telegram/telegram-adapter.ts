@@ -4,21 +4,58 @@ import type { ChannelAdapter, HandleMessageFn, IncomingMessage, StreamCallbacks 
 const TELEGRAM_MAX_LENGTH = 4096;
 const EDIT_INTERVAL_MS = 500;
 const TYPING_INTERVAL_MS = 4000;
+const CONFIRMATION_TIMEOUT_MS = 60_000;
+
+interface PendingConfirmation {
+  resolve: (value: { approved: boolean; reason?: string }) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+export interface TelegramRateLimiter {
+  check(key: string): { allowed: boolean; retryAfterMs?: number };
+}
 
 export class TelegramAdapter implements ChannelAdapter {
   readonly name = "telegram";
   private bot: Telegraf;
   private handleMessage: HandleMessageFn;
+  private pendingConfirmations = new Map<number, PendingConfirmation>();
+  private allowedUserIds: Set<string> | null;
+  private rateLimiter: TelegramRateLimiter | null;
 
-  constructor(token: string, handleMessage: HandleMessageFn) {
+  constructor(token: string, handleMessage: HandleMessageFn, allowedUserIds?: string[], rateLimiter?: TelegramRateLimiter) {
     this.bot = new Telegraf(token);
     this.handleMessage = handleMessage;
+    this.allowedUserIds = allowedUserIds?.length ? new Set(allowedUserIds) : null;
+    this.rateLimiter = rateLimiter ?? null;
     this.setupHandlers();
   }
 
   private setupHandlers(): void {
     this.bot.on("text", async (ctx) => {
       const chatId = ctx.chat.id;
+      const userId = String(ctx.from.id);
+
+      // Ignore messages from users not on the allowlist
+      if (this.allowedUserIds && !this.allowedUserIds.has(userId)) return;
+
+      // Rate limit per user
+      if (this.rateLimiter) {
+        const rl = this.rateLimiter.check(userId);
+        if (!rl.allowed) return;
+      }
+
+      // Check for pending confirmation first
+      const pending = this.pendingConfirmations.get(chatId);
+      if (pending) {
+        const reply = ctx.message.text.trim().toLowerCase();
+        const approved = reply === "yes" || reply === "y";
+        this.pendingConfirmations.delete(chatId);
+        clearTimeout(pending.timer);
+        pending.resolve({ approved, reason: approved ? undefined : `User replied: ${ctx.message.text}` });
+        return;
+      }
+
       const text = ctx.message.text;
 
       // Send typing indicator immediately
@@ -128,6 +165,26 @@ export class TelegramAdapter implements ChannelAdapter {
           await editMessage();
         }
       }
+    });
+  }
+
+  async requestConfirmation(channelId: string, prompt: string, timeoutMs?: number): Promise<{ approved: boolean; reason?: string }> {
+    const chatId = Number(channelId.split(":")[1]);
+    if (!chatId) return { approved: false, reason: "Invalid channel ID" };
+
+    try {
+      await this.bot.telegram.sendMessage(chatId, prompt);
+    } catch (err) {
+      return { approved: false, reason: `Failed to send confirmation prompt: ${err instanceof Error ? err.message : String(err)}` };
+    }
+
+    const timeout = timeoutMs ?? CONFIRMATION_TIMEOUT_MS;
+    return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingConfirmations.delete(chatId);
+        resolve({ approved: false, reason: "Confirmation timed out" });
+      }, timeout);
+      this.pendingConfirmations.set(chatId, { resolve, timer });
     });
   }
 

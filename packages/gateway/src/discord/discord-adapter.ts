@@ -4,13 +4,28 @@ import type { ChannelAdapter, HandleMessageFn, IncomingMessage, StreamCallbacks 
 const DISCORD_MAX_LENGTH = 2000;
 const EDIT_INTERVAL_MS = 500;
 const TYPING_INTERVAL_MS = 8000;
+const CONFIRMATION_TIMEOUT_MS = 60_000;
+
+interface PendingConfirmation {
+  resolve: (value: { approved: boolean; reason?: string }) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+export interface DiscordRateLimiter {
+  check(key: string): { allowed: boolean; retryAfterMs?: number };
+}
 
 export class DiscordAdapter implements ChannelAdapter {
   readonly name = "discord";
   private client: Client;
   private handleMessage: HandleMessageFn;
+  private pendingConfirmations = new Map<string, PendingConfirmation>();
 
-  constructor(token: string, handleMessage: HandleMessageFn) {
+  private token: string;
+  private allowedUserIds: Set<string> | null;
+  private rateLimiter: DiscordRateLimiter | null;
+
+  constructor(token: string, handleMessage: HandleMessageFn, allowedUserIds?: string[], rateLimiter?: DiscordRateLimiter) {
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -21,15 +36,35 @@ export class DiscordAdapter implements ChannelAdapter {
     });
     this.handleMessage = handleMessage;
     this.token = token;
+    this.allowedUserIds = allowedUserIds?.length ? new Set(allowedUserIds) : null;
+    this.rateLimiter = rateLimiter ?? null;
     this.setupHandlers();
   }
-
-  private token: string;
 
   private setupHandlers(): void {
     this.client.on(Events.MessageCreate, async (message) => {
       // Ignore bot messages (including own)
       if (message.author.bot) return;
+
+      // Ignore messages from users not on the allowlist
+      if (this.allowedUserIds && !this.allowedUserIds.has(message.author.id)) return;
+
+      // Rate limit per user
+      if (this.rateLimiter) {
+        const rl = this.rateLimiter.check(message.author.id);
+        if (!rl.allowed) return;
+      }
+
+      // Check for pending confirmation first
+      const pending = this.pendingConfirmations.get(message.channelId);
+      if (pending) {
+        const reply = message.content.trim().toLowerCase();
+        const approved = reply === "yes" || reply === "y";
+        this.pendingConfirmations.delete(message.channelId);
+        clearTimeout(pending.timer);
+        pending.resolve({ approved, reason: approved ? undefined : `User replied: ${message.content}` });
+        return;
+      }
 
       // Send typing indicator immediately
       try { await message.channel.sendTyping(); } catch {}
@@ -126,6 +161,31 @@ export class DiscordAdapter implements ChannelAdapter {
           await editMessage();
         }
       }
+    });
+  }
+
+  async requestConfirmation(channelId: string, prompt: string, timeoutMs?: number): Promise<{ approved: boolean; reason?: string }> {
+    const id = channelId.split(":")[1];
+    if (!id) return { approved: false, reason: "Invalid channel ID" };
+
+    const channel = this.client.channels.cache.get(id);
+    if (!channel || !("send" in channel)) {
+      return { approved: false, reason: `Channel ${id} not found or not text-based` };
+    }
+
+    try {
+      await (channel as { send: (content: string) => Promise<unknown> }).send(prompt);
+    } catch (err) {
+      return { approved: false, reason: `Failed to send confirmation prompt: ${err instanceof Error ? err.message : String(err)}` };
+    }
+
+    const timeout = timeoutMs ?? CONFIRMATION_TIMEOUT_MS;
+    return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingConfirmations.delete(id);
+        resolve({ approved: false, reason: "Confirmation timed out" });
+      }, timeout);
+      this.pendingConfirmations.set(id, { resolve, timer });
     });
   }
 

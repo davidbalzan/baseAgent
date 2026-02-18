@@ -20,6 +20,7 @@ export function createMemoryWriteTool(workspacePath: string): ToolDefinition<typ
     description:
       "Append a timestamped entry to one of the agent's writable memory files. Only MEMORY.md and USER.md can be written to. SOUL.md and HEARTBEAT.md are read-only.",
     parameters,
+    permission: "write",
     execute: async (args) => {
       const filePath = resolve(workspacePath, args.filename);
       const timestamp = new Date().toISOString();

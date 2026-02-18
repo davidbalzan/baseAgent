@@ -11,7 +11,14 @@ import type {
   TraceRepository,
   MessageRepository,
 } from "@baseagent/memory";
-import { ToolRegistry, createToolExecutor } from "@baseagent/tools";
+import {
+  ToolRegistry,
+  createToolExecutor,
+  createGovernedExecutor,
+  type GovernancePolicy,
+  type ConfirmationDelegate,
+  type GovernanceRateLimiter,
+} from "@baseagent/tools";
 
 export interface RunSessionInput {
   input: string;
@@ -36,6 +43,9 @@ export interface RunSessionDeps {
   sessionRepo: SessionRepository;
   traceRepo: TraceRepository;
   messageRepo: MessageRepository;
+  governancePolicy?: GovernancePolicy;
+  confirmationDelegate?: ConfirmationDelegate;
+  toolRateLimiter?: GovernanceRateLimiter;
 }
 
 export interface RunSessionResult {
@@ -63,8 +73,17 @@ export async function runSession(
     traceRepo.insert(event);
   });
 
-  // 3. Build tool executor
-  const executeTool = createToolExecutor((name) => registry.get(name));
+  // 3. Build tool executor with governance wrapper
+  const rawExecutor = createToolExecutor((name) => registry.get(name));
+  const defaultPolicy: GovernancePolicy = { read: "auto-allow", write: "confirm", exec: "confirm" };
+  const executeTool = createGovernedExecutor(rawExecutor, {
+    policy: deps.governancePolicy ?? defaultPolicy,
+    getToolDefinition: (name) => registry.get(name),
+    confirmationDelegate: deps.confirmationDelegate,
+    emitter,
+    sessionId,
+    rateLimiter: deps.toolRateLimiter,
+  });
 
   // 4. Run agent loop
   let result;

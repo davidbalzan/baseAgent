@@ -33,6 +33,7 @@ export function createWebSearchTool(): ToolDefinition<typeof parameters> {
     description:
       "Search the web using Brave Search. Requires the BRAVE_SEARCH_API_KEY environment variable. Returns a numbered list of results with title, URL, and description.",
     parameters,
+    permission: "read",
     timeoutMs: 15_000,
     execute: async (args) => {
       const apiKey = process.env.BRAVE_SEARCH_API_KEY;

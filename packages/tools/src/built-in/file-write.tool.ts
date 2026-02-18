@@ -24,6 +24,7 @@ export function createFileWriteTool(workspacePath: string): ToolDefinition<typeo
     description:
       "Write or create a file in the workspace. By default overwrites the file; set append=true to append instead. Parent directories are created automatically.",
     parameters,
+    permission: "write",
     timeoutMs: 5_000,
     execute: async (args) => {
       const filePath = resolveWorkspacePath(workspacePath, args.path);
