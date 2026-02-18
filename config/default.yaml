@@ -1,0 +1,41 @@
+# baseAgent Configuration
+# Environment variables are referenced as ${VAR_NAME}
+
+llm:
+  # Provider: "openrouter" | "anthropic" | "openai" | "ollama"
+  provider: openrouter
+  model: anthropic/claude-sonnet-4-20250514
+  apiKey: ${OPENROUTER_API_KEY}
+
+  # Provider-specific overrides (used when provider is switched)
+  providers:
+    anthropic:
+      apiKey: ${ANTHROPIC_API_KEY}
+    openai:
+      apiKey: ${OPENAI_API_KEY}
+    ollama:
+      baseUrl: http://localhost:11434
+
+channels:
+  telegram:
+    enabled: false
+    token: ${TELEGRAM_BOT_TOKEN}
+  discord:
+    enabled: false
+    token: ${DISCORD_BOT_TOKEN}
+
+agent:
+  maxIterations: 10
+  timeoutMs: 120000
+  costCapUsd: 1.00
+
+memory:
+  compactionThreshold: 4000
+  maxTokenBudget: 8000
+
+heartbeat:
+  intervalMs: 3600000 # 1 hour
+
+server:
+  port: 3000
+  host: 0.0.0.0

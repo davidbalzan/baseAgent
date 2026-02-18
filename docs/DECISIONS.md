@@ -13,6 +13,10 @@ ADRs capture context that's easy to forget: why we chose X over Y, what constrai
 | ADR-001 | [Use Monorepo Structure](#adr-001-use-monorepo-structure) | Accepted | 2026-02-18 |
 | ADR-002 | [Inherit vibeSeed Methodology](#adr-002-inherit-vibeseed-methodology) | Accepted | 2026-02-18 |
 | ADR-003 | [Use SQLite for All Persistence](#adr-003-use-sqlite-for-all-persistence) | Accepted | 2026-02-18 |
+| ADR-004 | [TypeScript + pnpm Workspaces](#adr-004-typescript--pnpm-workspaces) | Accepted | 2026-02-18 |
+| ADR-005 | [Vercel AI SDK v6 for LLM Abstraction](#adr-005-vercel-ai-sdk-v6-for-llm-abstraction) | Accepted | 2026-02-18 |
+| ADR-006 | [Hono for HTTP Layer](#adr-006-hono-for-http-layer) | Accepted | 2026-02-18 |
+| ADR-007 | [Zod for All Validation and Schemas](#adr-007-zod-for-all-validation-and-schemas) | Accepted | 2026-02-18 |
 
 ---
 
@@ -188,6 +192,216 @@ Use **SQLite** as the sole structured data store. A single `agent.db` file handl
 | PostgreSQL | Full-featured, vector support (pgvector), scales | Requires running a server, more setup | Overkill for single-user v1; upgrade path exists |
 | File-based JSON | Simplest possible | No queries, no indexing, corruption risk | Too primitive for traces and session management |
 | Redis | Fast, pub/sub support | In-memory only (or persistence adds complexity), another service | Not suitable as primary store; potential future addition for pub/sub |
+
+---
+
+## ADR-004: TypeScript + pnpm Workspaces
+
+**Status**: Accepted
+**Date**: 2026-02-18
+**Deciders**: David Balzan
+
+### Context
+
+baseAgent needs a language and package manager choice. The entire existing toolchain — Hono, Drizzle, BullMQ, Zod, Vercel AI SDK — is TypeScript-native. We need to formalize this and choose a workspace-aware package manager for the monorepo.
+
+### Decision
+
+Use **TypeScript** on **Node.js 22+** as the sole language, and **pnpm workspaces** for monorepo package management.
+
+- TypeScript strict mode enabled across all packages
+- Shared `tsconfig.json` base at repo root, extended per package
+- pnpm for strict dependency hoisting and better disk usage
+- Node.js 22 LTS for stable ES module support and built-in test runner
+
+### Consequences
+
+**Positive:**
+- Full type safety across package boundaries (shared interfaces between core, gateway, tools)
+- All chosen libraries are TypeScript-first — no `@types/*` wrappers needed
+- pnpm strict mode prevents phantom dependencies
+- Faster installs and reduced disk usage vs npm/yarn
+
+**Negative:**
+- Build step required (tsc or bundler) before execution
+- pnpm less widely known than npm (minor learning curve)
+
+**Risks:**
+- Node.js 22 is current LTS — mitigated by `.nvmrc` pinning
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| JavaScript (no TS) | No build step | No type safety, worse DX with Zod/Drizzle | Loses too much; all deps are TS-native |
+| npm workspaces | Most widely used | Slower installs, less strict hoisting | pnpm better for monorepos |
+| yarn berry | Plug'n'Play, fast | Complex setup, PnP compatibility issues | pnpm simpler with better strictness |
+| Bun | Fast runtime + bundler | Less mature, some Node.js API gaps | Risk for production; can revisit later |
+
+---
+
+## ADR-005: Vercel AI SDK v6 for LLM Abstraction
+
+**Status**: Accepted
+**Date**: 2026-02-18
+**Deciders**: David Balzan
+
+### Context
+
+baseAgent must support multiple LLM providers (Anthropic, OpenAI, local models) with the ability to switch via configuration. During development, OpenRouter provides access to 300+ models with a single API key. Production will use direct provider APIs. We need a unified interface that avoids vendor lock-in while keeping the codebase simple.
+
+### Decision
+
+Use **Vercel AI SDK v6** (`ai` package) as the unified LLM interface. The SDK provides a single `LanguageModel` type that all provider adapters conform to.
+
+**Provider adapters (installed as needed):**
+- `@openrouter/ai-sdk-provider` — dev/testing (300+ models, one key)
+- `@ai-sdk/anthropic` — production Claude (Opus 4.6 / Sonnet 4.6)
+- `@ai-sdk/openai` — production OpenAI
+- `ollama-ai-provider` — local/offline models
+
+**Own ReAct loop** — use the SDK's `streamText`/`generateText` primitives but build a custom agent loop for:
+- Resumability (persist loop state to SQLite)
+- Cost caps and iteration limits
+- Streaming to the gateway layer
+- Custom tool execution with sandboxing
+
+### Consequences
+
+**Positive:**
+- Single `LanguageModel` type throughout codebase — swap providers via config, not code
+- Provider switching is a one-line config change (model ID + adapter)
+- Built-in tool calling support with Zod schema validation
+- Active maintenance by Vercel, large community
+- Streaming support out of the box
+
+**Negative:**
+- Dependency on Vercel's SDK release cycle
+- Custom loop means we don't get the SDK's built-in `agent()` helper (intentional trade-off)
+
+**Risks:**
+- SDK breaking changes — mitigated by pinning versions and testing against CI
+- OpenRouter rate limits during dev — mitigated by fallback to local Ollama
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| Raw OpenAI SDK + baseURL swap | Simple, minimal deps | Manual type mapping per provider, no unified tool calling | Too much glue code for multi-provider |
+| LiteLLM proxy | 100+ providers, drop-in | Requires running a Python proxy server, adds infra | External process contradicts zero-dep philosophy |
+| Custom abstraction | Full control | Significant effort to build and maintain | Vercel AI SDK already solves this well |
+| LangChain.js | Feature-rich, many integrations | Heavy, opinionated, abstracts too much | Over-engineered for our use case; we want control over the loop |
+
+---
+
+## ADR-006: Hono for HTTP Layer
+
+**Status**: Accepted
+**Date**: 2026-02-18
+**Deciders**: David Balzan
+
+### Context
+
+baseAgent needs an HTTP server for webhook receivers (platform event triggers), health endpoints (monitoring), and a future admin API (dashboard). The server is not the primary interface — messaging channels are — so it should be minimal and fast.
+
+### Decision
+
+Use **Hono** as the HTTP framework for all server-side endpoints.
+
+- Webhook receiver for external event triggers (e.g., GitHub, calendar)
+- Health endpoint (`/health`) for monitoring and liveness probes
+- Future admin API for dashboard UI
+- Zod integration via `@hono/zod-validator` for request validation
+- ~14KB, zero dependencies, Web Standard APIs (Request/Response)
+
+### Consequences
+
+**Positive:**
+- Ultralight (~14KB) — negligible impact on bundle size
+- Web Standard APIs — portable across Node.js, Deno, Bun, Cloudflare Workers
+- Built-in middleware ecosystem (CORS, auth, logging)
+- TypeScript-first with excellent type inference for routes
+- Already in the project toolchain (no new dependency)
+
+**Negative:**
+- Smaller ecosystem than Express (fewer third-party middleware)
+- Less community knowledge compared to Express/Fastify
+
+**Risks:**
+- Middleware gaps — mitigated by Hono's growing ecosystem and ability to write custom middleware
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| Express | Massive ecosystem, universal knowledge | Heavy, callback-based, dated TypeScript support | Outdated DX; Hono is lighter and more modern |
+| Fastify | Fast, schema validation, plugins | Heavier than Hono, Node.js-only | More than we need; Hono sufficient |
+| tRPC | End-to-end type safety | Requires client coupling, not suitable for webhooks | Webhooks need standard HTTP endpoints |
+| No HTTP server | Simplest | Can't receive webhooks, no health endpoint | Need at minimum health check and webhook receiver |
+
+---
+
+## ADR-007: Zod for All Validation and Schemas
+
+**Status**: Accepted
+**Date**: 2026-02-18
+**Deciders**: David Balzan
+
+### Context
+
+baseAgent has validation needs at every layer: tool parameter schemas, config parsing, API request/response validation, LLM structured output, and message payloads between packages. We need a single schema library used consistently throughout the codebase so that types, validation, and documentation stay in sync.
+
+### Decision
+
+Use **Zod** as the sole schema definition and validation library across all packages. Every data boundary in the system uses Zod schemas as the source of truth.
+
+**Where Zod is used:**
+- **Tool definitions** — each tool declares its parameters as a Zod schema; the agent loop validates inputs before execution
+- **LLM structured output** — Vercel AI SDK's `generateObject`/`streamObject` accept Zod schemas directly for type-safe model responses
+- **Config parsing** — `config/default.yaml` is validated at startup against a Zod schema, failing fast on invalid config
+- **API validation** — Hono routes use `@hono/zod-validator` middleware for request body/query/param validation
+- **Inter-package contracts** — shared types between `@baseagent/core`, `gateway`, `tools`, etc. are defined as Zod schemas and inferred with `z.infer<>`
+- **Message payloads** — channel adapter messages validated at the gateway boundary
+
+**Key pattern:** Define the Zod schema first, then derive the TypeScript type from it — never the other way around.
+
+```typescript
+// Correct: schema is source of truth
+const ToolResultSchema = z.object({
+  toolName: z.string(),
+  output: z.unknown(),
+  durationMs: z.number(),
+});
+type ToolResult = z.infer<typeof ToolResultSchema>;
+
+// Wrong: don't define interface first then build schema to match
+```
+
+### Consequences
+
+**Positive:**
+- Single source of truth for types and validation — no drift between runtime checks and TypeScript types
+- Native integration with Vercel AI SDK (tool schemas, structured output)
+- Native integration with Hono (`@hono/zod-validator`)
+- Excellent error messages for debugging invalid data
+- Schemas are serializable — can generate JSON Schema for external docs
+
+**Negative:**
+- Runtime overhead for validation (negligible for our scale)
+- Learning curve for complex schema compositions (transforms, refinements)
+
+**Risks:**
+- Schema duplication across packages — mitigated by exporting shared schemas from `@baseagent/core`
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| TypeScript types only | Zero runtime cost | No runtime validation, types erased at runtime | Can't validate LLM output, config, or API inputs at runtime |
+| Joi | Mature, widely used | No TypeScript type inference, heavier | Zod's type inference is a major advantage |
+| Yup | Similar to Joi | Weaker TS inference, less active | Zod has better ecosystem fit (AI SDK, Hono) |
+| ArkType | Faster validation | Less mature, smaller ecosystem | Too new; Zod is the ecosystem standard for our stack |
+| io-ts | Strong FP approach | Steep learning curve, verbose | Over-engineered for our needs |
 
 ---
 

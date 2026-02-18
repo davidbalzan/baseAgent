@@ -61,7 +61,7 @@ baseAgent combines these into a template that is immediately useful as a daily d
 | ID | Goal | Success Criteria |
 |----|------|-----------------|
 | G1 | Provide a production-ready agent loop with streaming and resumability | Loop completes 95%+ of tasks within configured iteration/timeout limits; survives process restart mid-task |
-| G2 | Unify messaging across 5+ platforms behind a single daemon | WhatsApp, Telegram, Discord, Slack, and Signal/iMessage adapters functional with <2s message delivery |
+| G2 | Unify messaging across multiple platforms behind a single daemon | Telegram, Discord, Slack adapters functional with <2s message delivery; adapter interface supports adding more |
 | G3 | Offer human-readable, editable memory and persona files | Users can modify `SOUL.md`, `USER.md` etc. and see behavior changes on next interaction |
 | G4 | Ship 8–12 general-purpose tool primitives | File I/O, shell, browser, web search, calendar, email, image analysis, code interpreter all functional |
 | G5 | Enable proactive behavior via heartbeat and triggers | Agent wakes on schedule, reads checklist, and acts or reports "all good" |
@@ -106,7 +106,7 @@ baseAgent combines these into a template that is immediately useful as a daily d
 | **Resumable by default** | Loop state persisted to SQLite; tools report idempotency |
 | **Convention over configuration** | Sensible defaults; override via Markdown/YAML files |
 | **Adapter pattern for I/O** | Channels, LLM providers, and tools share common interfaces |
-| **Latest stable dependencies** | Target Node/Python/Rust latest LTS; Tailwind for any web UI |
+| **Latest stable dependencies** | Target Node.js 22 LTS; Tailwind for any web UI |
 
 ---
 
@@ -150,14 +150,14 @@ A clean, resumable ReAct-style loop: **Reason → Tool Calls → Observe → Rep
 
 #### 5.2.1 Description
 
-A single long-lived daemon process that handles inbound/outbound messages across WhatsApp, Telegram, Discord, Slack, and Signal/iMessage via a unified adapter interface. This is OpenClaw's primary differentiator.
+A single long-lived daemon process that handles inbound/outbound messages across Telegram, Discord, Slack, and additional platforms via a unified adapter interface. The messaging-native gateway is baseAgent's primary differentiator.
 
 #### 5.2.2 Requirements
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
 | GW-1 | Unified `ChannelAdapter` interface: `onMessage`, `sendMessage`, `sendTyping`, `sendMedia` | P0 | All adapters implement this |
-| GW-2 | WhatsApp adapter (via Baileys or official Cloud API) | P0 | |
+| GW-2 | WhatsApp adapter (via Baileys or official Cloud API) | P2 | Deferred — unofficial API ban risk; revisit post-v1 |
 | GW-3 | Telegram adapter (via Bot API / Telegraf) | P0 | |
 | GW-4 | Discord adapter (via Discord.js) | P0 | |
 | GW-5 | Slack adapter (via Bolt) | P1 | |
@@ -172,7 +172,7 @@ A single long-lived daemon process that handles inbound/outbound messages across
 
 #### 5.2.3 Acceptance Criteria
 
-- User sends a message on WhatsApp; agent replies within 5 seconds (excluding model latency).
+- User sends a message on Telegram; agent replies within 5 seconds (excluding model latency).
 - User sends a message on Telegram while agent is mid-task on Discord; message is queued and processed next.
 - Adding a new channel adapter requires only implementing the `ChannelAdapter` interface and registering it.
 
@@ -344,7 +344,7 @@ The agent doesn't just respond — it proactively checks in. A heartbeat schedul
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| ML-1 | LiteLLM-style provider abstraction (OpenAI, Anthropic, Grok, Gemini, Ollama, LM Studio) | P0 | Single interface, swap via config |
+| ML-1 | Vercel AI SDK v6 provider abstraction (Anthropic, OpenAI, OpenRouter, Ollama) | P0 | Resolved — ADR-005; scaffolded in `@baseagent/core` |
 | ML-2 | Fallback chain — try fast/cheap model first, escalate to stronger model on failure | P1 | Configurable chain |
 | ML-3 | Structured output enforcement (JSON mode for tool calls and plans) | P0 | |
 | ML-4 | Token counting and context window management per provider | P0 | |
@@ -363,7 +363,7 @@ These are out of scope for the initial releases but inform architectural decisio
 | **Offline-First Fallbacks** | Cache web results, queue actions when offline, sync when reconnected |
 | **Export/Import Agent State** | Full state snapshot for migration, backup, or cloning |
 | **Multi-User / Team Mode** | Isolated workspaces per user, shared knowledge base, role-based access |
-| **Canvas / Visual Workspace** | Drag-drop images/notes, agent-drawn diagrams (like OpenClaw) |
+| **Canvas / Visual Workspace** | Drag-drop images/notes, agent-drawn diagrams |
 | **Plugin Sandboxing** | WASM-based skill isolation for untrusted community plugins |
 
 ---
@@ -374,13 +374,16 @@ These are out of scope for the initial releases but inform architectural decisio
 
 | Decision | Options | Recommendation | Status |
 |----------|---------|----------------|--------|
-| Primary language | TypeScript, Python, Rust | TBD — depends on team preference | Open |
-| Package manager | pnpm, uv, cargo | Aligned with language choice | Open |
-| Database | SQLite (via better-sqlite3/Drizzle or sqlite3/SQLAlchemy) | SQLite — zero-dep, single-file | Proposed |
+| Primary language | TypeScript, Python, Rust | **TypeScript** on Node.js 22+ | **Accepted** (ADR-004) |
+| Package manager | pnpm, uv, cargo | **pnpm workspaces** | **Accepted** (ADR-004) |
+| Database | SQLite (via better-sqlite3/Drizzle) | **SQLite** — zero-dep, single-file | **Accepted** (ADR-003) |
+| LLM abstraction | Vercel AI SDK, LiteLLM, raw SDKs | **Vercel AI SDK v6** with provider adapters | **Accepted** (ADR-005) |
+| HTTP framework | Hono, Express, Fastify | **Hono** — ultralight, Web Standard APIs | **Accepted** (ADR-006) |
+| Validation | Zod, Joi, Yup | **Zod** — schema-first, type inference | **Accepted** (ADR-007) |
 | Process model | Single process + async, multi-process workers | Single process + async (simpler v1) | Proposed |
 | Container runtime | Docker, Podman, none | Docker for sandbox; optional for deployment | Proposed |
-| LLM default | Claude (Anthropic), GPT (OpenAI) | Claude latest (Opus 4.6 / Sonnet 4.6) | Proposed |
-| WhatsApp approach | Baileys (unofficial), Cloud API (official) | TBD — tradeoffs: cost vs. reliability | Open |
+| LLM default | Claude (Anthropic), GPT (OpenAI) | Claude latest (Opus 4.6 / Sonnet 4.6) via OpenRouter for dev | Proposed |
+| WhatsApp approach | Baileys (unofficial), Cloud API (official) | **Deferred** — ban risk; revisit post-v1 | Deferred |
 
 ### 8.2 Hard Constraints
 
@@ -448,7 +451,6 @@ Week 5–6:  Gateway core + first 2 adapters (Telegram, Discord)
            Typing indicators, message queuing (GW-8, GW-9)
 
 Week 7–8:  Remaining tools: browser, calendar, email, code_interpret
-           WhatsApp adapter
            Auto-compaction (MM-4)
 
 Week 9–10: Heartbeat scheduler (PT-1 through PT-3, PT-6)
@@ -463,11 +465,12 @@ Week 11–12: Integration testing, soak testing
 ### Phase 2 — Polish (v1.1)
 
 ```
-Week 13–16: Model abstraction layer (ML-1 through ML-4)
+Week 13–16: Fallback chain and model escalation (ML-2)
             Enhanced sandbox (GV-3)
             Webhook triggers (PT-4)
             Visual trace replay (OB-3)
             Slack adapter (GW-5)
+            WhatsApp adapter exploration (GW-2)
 ```
 
 ### Phase 3 — Multi-Agent (v1.2)
@@ -539,6 +542,7 @@ baseAgent/
 │   ├── gateway/              # Channel adapters, message routing
 │   ├── memory/               # Memory loading, compaction, SQLite
 │   ├── tools/                # Built-in tool implementations
+│   ├── server/               # HTTP server, webhooks, health endpoint
 │   └── dashboard/            # Web UI (v1.1+)
 ├── skills/                   # User-installed agent extensions
 │   └── example-skill/
@@ -555,8 +559,11 @@ baseAgent/
 │   └── default.yaml          # Runtime configuration
 ├── CURRENT_FOCUS.md          # Active work context
 ├── TOOLS_PREFERENCE.md       # Preferred libraries & tools
+├── .env.example              # Required environment variables
 ├── agent.db                  # SQLite database (generated at runtime)
-├── package.json              # or pyproject.toml / Cargo.toml
+├── package.json
+├── pnpm-workspace.yaml       # Workspace package paths
+├── tsconfig.json             # Shared TypeScript base config
 └── README.md
 ```
 

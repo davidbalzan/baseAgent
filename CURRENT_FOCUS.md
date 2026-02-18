@@ -6,42 +6,44 @@
 
 ## Active Work
 
-**Phase**: Phase 0 - Project Setup
-**Task**: Task 0.1 - Repository Initialization
-**Sub-step**: 0.1.1 - Define PRD and project identity
+**Phase**: Phase 1 - Foundation
+**Task**: Task 1.1 - Agent Loop Implementation
+**Sub-step**: 1.1.0 - Monorepo scaffold complete, ready for implementation
 **Branch**: `main`
 
 ---
 
 ## Quick Context
 
-**What we're doing**: Finalizing project identity, cleaning superfluous files, and preparing for technology decisions.
+**What we're doing**: Monorepo scaffold is in place with all 5 packages (`core`, `gateway`, `memory`, `tools`, `server`). Ready to begin implementing the agent loop in `@baseagent/core`.
 
-**Why**: Foundation for the agentic application template. Need clear requirements and architecture decisions before writing any implementation code.
+**Why**: The skeleton is wired up — pnpm workspaces, TypeScript configs, package cross-references, and config stubs are all ready. Next step is building the ReAct loop using Vercel AI SDK v6.
 
 **Blocked by**: Nothing - clear to proceed.
 
-**Next up**: Task 0.2 - Technology decisions (language, framework, package manager)
+**Next up**: Implement `@baseagent/core` agent loop — model resolver, ReAct cycle, state persistence
 
 ---
 
 ## Key Files
 
 - PRD: `docs/PRD.md`
-- Decisions: `docs/DECISIONS.md`
-- Commands: `docs/COMMANDS.md`
+- Decisions: `docs/DECISIONS.md` (ADR-001 through ADR-006)
+- Config: `config/default.yaml`
+- Entry point: `packages/server/src/index.ts`
 
 ---
 
-## Session Notes
+## Completed
 
-_Add notes here during work sessions. Clear when starting new task._
-
-- [x] Merge workflow kit into baseAgent repo
-- [x] Create PRD from feature spec
-- [x] Reset repo identity (README, cursorrules, copilot instructions)
-- [ ] Finalize technology decisions (ADRs)
-- [ ] Scaffold monorepo packages
+- [x] Project identity (README, PRD, cursorrules)
+- [x] ADR-001: Monorepo structure
+- [x] ADR-002: vibeSeed methodology
+- [x] ADR-003: SQLite persistence
+- [x] ADR-004: TypeScript + pnpm
+- [x] ADR-005: Vercel AI SDK v6
+- [x] ADR-006: Hono HTTP layer
+- [x] Monorepo scaffold (packages, configs, workspace files)
 
 ---
 

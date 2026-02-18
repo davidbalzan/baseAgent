@@ -1,0 +1,23 @@
+{
+  "name": "@baseagent/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ai": "^4.1.0",
+    "@ai-sdk/anthropic": "^1.2.0",
+    "@ai-sdk/openai": "^1.2.0",
+    "@openrouter/ai-sdk-provider": "^0.4.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
