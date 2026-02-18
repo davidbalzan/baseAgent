@@ -256,7 +256,7 @@ An extensible, safe tool system starting with 8–12 general-purpose primitives.
 | TS-7 | Tool error handling — structured error returned to model for recovery | P0 | Model can retry or try alternative |
 | TS-8 | Parallel tool execution support | P1 | When model requests multiple independent tools |
 | TS-9 | Tool progress streaming (long-running tools emit partial updates) | P1 | e.g., browser screenshot during navigation |
-| TS-10 | `git clone` skill installer — `claw install <repo-url>` | P2 | ClawHub-like experience |
+| TS-10 | `git clone` skill installer — `baseagent skill install <repo-url>` | P2 | Install community skills from git repos |
 
 #### 5.4.4 Acceptance Criteria
 

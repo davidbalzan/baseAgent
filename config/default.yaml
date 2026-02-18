@@ -4,7 +4,7 @@
 llm:
   # Provider: "openrouter" | "anthropic" | "openai" | "ollama"
   provider: openrouter
-  model: anthropic/claude-sonnet-4-20250514
+  model: google/gemini-2.0-flash-001
   apiKey: ${OPENROUTER_API_KEY}
 
   # Provider-specific overrides (used when provider is switched)
@@ -18,10 +18,10 @@ llm:
 
 channels:
   telegram:
-    enabled: false
+    enabled: true
     token: ${TELEGRAM_BOT_TOKEN}
   discord:
-    enabled: false
+    enabled: true
     token: ${DISCORD_BOT_TOKEN}
 
 agent:
