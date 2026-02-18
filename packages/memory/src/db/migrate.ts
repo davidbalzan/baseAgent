@@ -1,6 +1,6 @@
 import type { AppDatabase } from "./connection.js";
 
-const CREATE_TABLES_SQL = `
+export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   status TEXT NOT NULL DEFAULT 'pending',

@@ -18,32 +18,31 @@ export class MessageRepository {
     msgs: Array<{ role: string; content: unknown }>,
     iterationMap: Map<number, number>,
   ): void {
-    // Delete existing messages for this session
-    this.db.delete(messages).where(eq(messages.sessionId, sessionId)).run();
+    this.db.transaction((tx) => {
+      tx.delete(messages).where(eq(messages.sessionId, sessionId)).run();
 
-    const now = new Date().toISOString();
+      const now = new Date().toISOString();
 
-    // Insert all messages with position = array index
-    for (let i = 0; i < msgs.length; i++) {
-      const msg = msgs[i];
-      const content =
-        typeof msg.content === "string"
-          ? msg.content
-          : JSON.stringify(msg.content);
+      for (let i = 0; i < msgs.length; i++) {
+        const msg = msgs[i];
+        const content =
+          typeof msg.content === "string"
+            ? msg.content
+            : JSON.stringify(msg.content);
 
-      this.db
-        .insert(messages)
-        .values({
-          id: randomUUID(),
-          sessionId,
-          role: msg.role,
-          content,
-          iteration: iterationMap.get(i) ?? 0,
-          position: i,
-          timestamp: now,
-        })
-        .run();
-    }
+        tx.insert(messages)
+          .values({
+            id: randomUUID(),
+            sessionId,
+            role: msg.role,
+            content,
+            iteration: iterationMap.get(i) ?? 0,
+            position: i,
+            timestamp: now,
+          })
+          .run();
+      }
+    });
   }
 
   loadSessionMessages(sessionId: string): SerializedMessage[] {

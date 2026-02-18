@@ -36,7 +36,9 @@ memory:
   toolOutputDecayThresholdChars: 500
 
 heartbeat:
-  intervalMs: 3600000 # 1 hour
+  enabled: false
+  intervalMs: 1800000 # 30 min
+  # channelId: "telegram:12345"
 
 server:
   port: 3000

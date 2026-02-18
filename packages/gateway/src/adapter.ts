@@ -21,4 +21,5 @@ export interface ChannelAdapter {
   readonly name: string;
   start(): Promise<void>;
   stop(): Promise<void>;
+  sendMessage?(channelId: string, text: string): Promise<void>;
 }

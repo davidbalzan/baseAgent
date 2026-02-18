@@ -29,10 +29,11 @@ export { loadConfig } from "./config/loader.js";
 
 // Model
 export { resolveModel } from "./model/resolver.js";
+export type { LanguageModel } from "ai";
 
 // Loop
 export { LoopEmitter } from "./loop/loop-events.js";
-export type { LoopEventMap } from "./loop/loop-events.js";
+export type { LoopEventMap, SessionCompletePayload } from "./loop/loop-events.js";
 export { createLoopState, updateUsage } from "./loop/loop-state.js";
 export type { LoopState } from "./loop/loop-state.js";
 export { runAgentLoop } from "./loop/agent-loop.js";

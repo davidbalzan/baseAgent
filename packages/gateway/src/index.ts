@@ -8,3 +8,4 @@ export type {
 export { TelegramAdapter } from "./telegram/telegram-adapter.js";
 export { DiscordAdapter } from "./discord/discord-adapter.js";
 export { createQueuedHandler } from "./queue.js";
+export { createProactiveMessenger, type SendProactiveMessageFn } from "./proactive.js";

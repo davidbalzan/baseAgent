@@ -10,7 +10,6 @@ const ROOT_DIR = resolve(__dirname, "..", "..", "..");
 import {
   loadConfig,
   resolveModel,
-  runAgentLoop,
   LoopEmitter,
   type LoopState,
 } from "@baseagent/core";
@@ -25,7 +24,6 @@ import {
 } from "@baseagent/memory";
 import {
   ToolRegistry,
-  createToolExecutor,
   finishTool,
   createMemoryReadTool,
   createMemoryWriteTool,
@@ -42,11 +40,14 @@ import {
   TelegramAdapter,
   DiscordAdapter,
   createQueuedHandler,
+  createProactiveMessenger,
   type HandleMessageFn,
   type ChannelAdapter,
 } from "@baseagent/gateway";
 
 import { healthRoute } from "./health.js";
+import { runSession, type RunSessionDeps } from "./run-session.js";
+import { createHeartbeatScheduler, type HeartbeatScheduler } from "./heartbeat.js";
 
 async function main() {
   // 1. Load config
@@ -103,23 +104,23 @@ async function main() {
   const traceRepo = new TraceRepository(db);
   const messageRepo = new MessageRepository(db);
 
-  // Helper: persist messages after a loop run
-  function persistMessages(
-    sessionId: string,
-    result: { messages: Array<{ role: string; content: unknown }>; toolMessageMeta: Array<{ messageIndex: number; iteration: number }> },
-  ): void {
-    const iterationMap = new Map<number, number>();
-    for (const meta of result.toolMessageMeta) {
-      iterationMap.set(meta.messageIndex, meta.iteration);
-    }
-    messageRepo.saveSessionMessages(sessionId, result.messages, iterationMap);
-  }
+  // Shared deps for runSession
+  const sessionDeps: RunSessionDeps = {
+    model,
+    systemPrompt,
+    registry,
+    config,
+    workspacePath,
+    sessionRepo,
+    traceRepo,
+    messageRepo,
+  };
 
   // 7. Build Hono app
   const app = new Hono();
   app.route("/", healthRoute);
 
-  // Temporary POST /run endpoint for testing
+  // POST /run — start a new agent session
   app.post("/run", async (c) => {
     const body = await c.req.json<{ input: string; channelId?: string }>();
 
@@ -127,67 +128,38 @@ async function main() {
       return c.json({ error: "Missing 'input' field" }, 400);
     }
 
-    // Create session
-    const session = sessionRepo.create({
-      input: body.input,
-      channelId: body.channelId,
-    });
+    try {
+      const result = await runSession({ input: body.input, channelId: body.channelId }, sessionDeps);
 
-    // Set up emitter to persist traces
-    const emitter = new LoopEmitter();
-    emitter.on("trace", (event) => {
-      traceRepo.insert(event);
-    });
-
-    // Build tool executor
-    const executeTool = createToolExecutor((name) => registry.get(name));
-
-    // Run the agent loop
-    const result = await runAgentLoop(body.input, {
-      model,
-      systemPrompt,
-      tools: registry.getAll(),
-      executeTool,
-      maxIterations: config.agent.maxIterations,
-      timeoutMs: config.agent.timeoutMs,
-      costCapUsd: config.agent.costCapUsd,
-      sessionId: session.id,
-      compactionThreshold: config.memory.compactionThreshold,
-      workspacePath,
-      toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
-      toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
-    }, emitter);
-
-    // Persist messages + update session with results
-    persistMessages(session.id, result);
-    sessionRepo.updateStatus(session.id, result.state.status, result.output);
-    sessionRepo.updateUsage(session.id, {
-      totalTokens: result.state.totalTokens,
-      promptTokens: result.state.promptTokens,
-      completionTokens: result.state.completionTokens,
-      totalCostUsd: result.state.estimatedCostUsd,
-      iterations: result.state.iteration,
-    });
-
-    return c.json({
-      sessionId: result.sessionId,
-      output: result.output,
-      usage: {
-        totalTokens: result.state.totalTokens,
-        promptTokens: result.state.promptTokens,
-        completionTokens: result.state.completionTokens,
-        estimatedCostUsd: result.state.estimatedCostUsd,
-        iterations: result.state.iteration,
-      },
-      status: result.state.status,
-    });
+      return c.json({
+        sessionId: result.sessionId,
+        output: result.output,
+        usage: {
+          totalTokens: result.state.totalTokens,
+          promptTokens: result.state.promptTokens,
+          completionTokens: result.state.completionTokens,
+          estimatedCostUsd: result.state.estimatedCostUsd,
+          iterations: result.state.iteration,
+        },
+        status: result.state.status,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Internal server error";
+      console.error("[run] Session failed:", err);
+      return c.json({ error: message }, 500);
+    }
   });
 
   // POST /resume — continue an interrupted session
   const RESUMABLE_STATUSES = new Set(["timeout", "cost_limit", "failed"]);
 
   app.post("/resume", async (c) => {
-    const body = await c.req.json<{ sessionId: string; input?: string }>();
+    const body = await c.req.json<{
+      sessionId: string;
+      input?: string;
+      additionalBudgetUsd?: number;
+      additionalIterations?: number;
+    }>();
 
     if (!body.sessionId || typeof body.sessionId !== "string") {
       return c.json({ error: "Missing 'sessionId' field" }, 400);
@@ -230,57 +202,43 @@ async function main() {
       estimatedCostUsd: session.totalCostUsd,
     };
 
-    // 6. Set up emitter + run loop
-    const emitter = new LoopEmitter();
-    emitter.on("trace", (event) => {
-      traceRepo.insert(event);
-    });
+    // 6. Compute effective caps: accumulated + additional budget
+    const additionalBudget = body.additionalBudgetUsd ?? config.agent.costCapUsd;
+    const effectiveCostCap = (initialState.estimatedCostUsd ?? 0) + additionalBudget;
 
-    const executeTool = createToolExecutor((name) => registry.get(name));
+    const additionalIterations = body.additionalIterations ?? config.agent.maxIterations;
+    const effectiveMaxIterations = (initialState.iteration ?? 0) + additionalIterations;
 
-    const result = await runAgentLoop(body.input ?? "", {
-      model,
-      systemPrompt,
-      tools: registry.getAll(),
-      executeTool,
-      maxIterations: config.agent.maxIterations,
-      timeoutMs: config.agent.timeoutMs,
-      costCapUsd: config.agent.costCapUsd,
-      sessionId: body.sessionId,
-      compactionThreshold: config.memory.compactionThreshold,
-      workspacePath,
-      toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
-      toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      initialMessages: restoredMessages as any,
-      initialToolMessageMeta: toolMessageMeta,
-      initialState,
-    }, emitter);
+    // 7. Run session with resume inputs
+    try {
+      const result = await runSession({
+        input: body.input ?? "",
+        sessionId: body.sessionId,
+        initialMessages: restoredMessages,
+        initialToolMessageMeta: toolMessageMeta,
+        initialState,
+        costCapOverrideUsd: effectiveCostCap,
+        maxIterationsOverride: effectiveMaxIterations,
+      }, sessionDeps);
 
-    // 7. Persist updated state
-    persistMessages(body.sessionId, result);
-    sessionRepo.updateStatus(body.sessionId, result.state.status, result.output);
-    sessionRepo.updateUsage(body.sessionId, {
-      totalTokens: result.state.totalTokens,
-      promptTokens: result.state.promptTokens,
-      completionTokens: result.state.completionTokens,
-      totalCostUsd: result.state.estimatedCostUsd,
-      iterations: result.state.iteration,
-    });
-
-    return c.json({
-      resumed: true,
-      sessionId: body.sessionId,
-      output: result.output,
-      usage: {
-        totalTokens: result.state.totalTokens,
-        promptTokens: result.state.promptTokens,
-        completionTokens: result.state.completionTokens,
-        estimatedCostUsd: result.state.estimatedCostUsd,
-        iterations: result.state.iteration,
-      },
-      status: result.state.status,
-    });
+      return c.json({
+        resumed: true,
+        sessionId: body.sessionId,
+        output: result.output,
+        usage: {
+          totalTokens: result.state.totalTokens,
+          promptTokens: result.state.promptTokens,
+          completionTokens: result.state.completionTokens,
+          estimatedCostUsd: result.state.estimatedCostUsd,
+          iterations: result.state.iteration,
+        },
+        status: result.state.status,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Internal server error";
+      console.error("[resume] Session failed:", err);
+      return c.json({ error: message }, 500);
+    }
   });
 
   // 8. Start server
@@ -295,16 +253,8 @@ async function main() {
   const adapters: ChannelAdapter[] = [];
 
   const handleMessage: HandleMessageFn = async (message, stream) => {
-    const session = sessionRepo.create({
-      input: message.text,
-      channelId: message.channelId,
-    });
-
     const emitter = new LoopEmitter();
 
-    emitter.on("trace", (event) => {
-      traceRepo.insert(event);
-    });
     emitter.on("text_delta", (delta) => {
       stream.onTextDelta(delta);
     });
@@ -315,38 +265,16 @@ async function main() {
       stream.onError(error);
     });
 
-    const executeTool = createToolExecutor((name) => registry.get(name));
-
     try {
-      const result = await runAgentLoop(message.text, {
-        model,
-        systemPrompt,
-        tools: registry.getAll(),
-        executeTool,
-        maxIterations: config.agent.maxIterations,
-        timeoutMs: config.agent.timeoutMs,
-        costCapUsd: config.agent.costCapUsd,
-        sessionId: session.id,
-        compactionThreshold: config.memory.compactionThreshold,
-        workspacePath,
-        toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
-        toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
-      }, emitter);
-
-      persistMessages(session.id, result);
-      sessionRepo.updateStatus(session.id, result.state.status, result.output);
-      sessionRepo.updateUsage(session.id, {
-        totalTokens: result.state.totalTokens,
-        promptTokens: result.state.promptTokens,
-        completionTokens: result.state.completionTokens,
-        totalCostUsd: result.state.estimatedCostUsd,
-        iterations: result.state.iteration,
-      });
+      const result = await runSession(
+        { input: message.text, channelId: message.channelId },
+        sessionDeps,
+        emitter,
+      );
 
       stream.onFinish(result.output);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      sessionRepo.updateStatus(session.id, "failed", error.message);
       stream.onError(error);
     }
   };
@@ -377,9 +305,33 @@ async function main() {
     }
   }
 
-  // 10. Graceful shutdown
+  // 10. Heartbeat scheduler
+  let heartbeat: HeartbeatScheduler | null = null;
+
+  if (config.heartbeat?.enabled) {
+    const proactiveAdapters = adapters
+      .filter((a): a is ChannelAdapter & { sendMessage: (id: string, text: string) => Promise<void> } =>
+        typeof a.sendMessage === "function",
+      )
+      .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
+
+    const sendProactiveMessage = proactiveAdapters.length > 0
+      ? createProactiveMessenger(proactiveAdapters)
+      : undefined;
+
+    heartbeat = createHeartbeatScheduler({
+      config,
+      sessionDeps,
+      workspacePath,
+      sendProactiveMessage,
+    });
+    heartbeat.start();
+  }
+
+  // 11. Graceful shutdown
   const shutdown = async () => {
     console.log("[server] Shutting down...");
+    heartbeat?.stop();
     for (const adapter of adapters) {
       await adapter.stop();
     }

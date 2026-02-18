@@ -1,12 +1,14 @@
 # Heartbeat
 
-> **Periodic self-initiated check-ins and background tasks.**
+> Periodic self-initiated check-ins and background tasks.
+> The agent reads this file on each heartbeat tick and decides what to act on.
 
 ## Schedule
 
-- **Interval**: Configured in `config/default.yaml`
-- **Tasks**: Memory compaction, pending reminders, proactive updates
+- [ ] Every morning (8am-10am): Review workspace and summarize recent activity
+- [ ] Every evening (6pm-8pm): Write a daily summary to MEMORY.md
 
-## Last Run
+## Notes
 
-_Not yet executed._
+- Schedule expressions are interpreted by the agent — use natural language.
+- Edit this file anytime. Changes take effect on the next heartbeat tick.

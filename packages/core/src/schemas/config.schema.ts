@@ -46,7 +46,9 @@ const MemoryConfigSchema = z.object({
 });
 
 const HeartbeatConfigSchema = z.object({
-  intervalMs: z.number().int().positive().default(3_600_000),
+  enabled: z.boolean().default(false),
+  intervalMs: z.number().int().positive().default(1_800_000), // 30 min
+  channelId: optionalString, // e.g., "telegram:12345"
 });
 
 const ServerConfigSchema = z.object({

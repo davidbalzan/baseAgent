@@ -1,6 +1,6 @@
 export { initDatabase, getDatabase, closeDatabase } from "./db/connection.js";
 export type { AppDatabase } from "./db/connection.js";
-export { pushSchema } from "./db/migrate.js";
+export { pushSchema, CREATE_TABLES_SQL } from "./db/migrate.js";
 export { sessions, messages, toolExecutions, traces } from "./db/schema.js";
 export { SessionRepository } from "./repositories/session.repository.js";
 export type { CreateSessionInput } from "./repositories/session.repository.js";

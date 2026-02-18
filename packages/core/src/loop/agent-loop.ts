@@ -19,6 +19,7 @@ export interface AgentLoopOptions {
   workspacePath?: string;
   toolOutputDecayIterations?: number;
   toolOutputDecayThresholdChars?: number;
+  /** Pre-existing message history for resume. When set, the `input` param is unused. */
   initialMessages?: CoreMessage[];
   initialToolMessageMeta?: ToolMessageMeta[];
   initialState?: Partial<LoopState>;
@@ -65,6 +66,14 @@ function emitTrace(
   emitter.emit("trace", event);
 }
 
+/**
+ * Execute an agent loop: stream LLM responses, execute tool calls, and iterate.
+ *
+ * @param input - User input text. Ignored when `options.initialMessages` is
+ *   provided (resume scenario) — pass empty string in that case.
+ * @param options - Loop configuration including model, tools, and budgets.
+ * @param emitter - Optional event emitter for observability.
+ */
 export async function runAgentLoop(
   input: string,
   options: AgentLoopOptions,
@@ -243,6 +252,8 @@ export async function runAgentLoop(
         const { summary, compactedMessages } = await compactMessages(model, messages, systemPrompt);
         messages.length = 0;
         messages.push(...compactedMessages);
+        // Compaction replaces all messages with a summary. Pre-compaction tool metadata
+        // is invalidated since message indices changed. Decay tracking restarts here.
         toolMessageMeta.length = 0;
 
         if (workspacePath) {
@@ -292,6 +303,7 @@ export async function runAgentLoop(
   });
 
   loopEmitter.emit("finish", finalOutput);
+  loopEmitter.emit("session_complete", { sessionId, output: finalOutput, state, messages, toolMessageMeta });
 
   return { sessionId, output: finalOutput, state, messages, toolMessageMeta };
 }

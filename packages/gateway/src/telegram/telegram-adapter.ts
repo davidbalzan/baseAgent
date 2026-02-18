@@ -131,6 +131,26 @@ export class TelegramAdapter implements ChannelAdapter {
     });
   }
 
+  async sendMessage(channelId: string, text: string): Promise<void> {
+    const chatId = channelId.split(":")[1];
+    if (!chatId) return;
+
+    const truncated = text.length > TELEGRAM_MAX_LENGTH
+      ? text.slice(0, TELEGRAM_MAX_LENGTH - 4) + "..."
+      : text;
+
+    try {
+      await this.bot.telegram.sendMessage(chatId, truncated, { parse_mode: "Markdown" });
+    } catch {
+      // Retry without Markdown if parse fails
+      try {
+        await this.bot.telegram.sendMessage(chatId, truncated);
+      } catch (err) {
+        console.error("[telegram] sendMessage failed:", err);
+      }
+    }
+  }
+
   async start(): Promise<void> {
     // bot.launch() never resolves (runs polling loop forever),
     // so we verify the token with getMe() first, then fire-and-forget launch.

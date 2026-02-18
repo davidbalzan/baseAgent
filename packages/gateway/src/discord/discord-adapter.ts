@@ -129,6 +129,27 @@ export class DiscordAdapter implements ChannelAdapter {
     });
   }
 
+  async sendMessage(channelId: string, text: string): Promise<void> {
+    const id = channelId.split(":")[1];
+    if (!id) return;
+
+    const channel = this.client.channels.cache.get(id);
+    if (!channel || !("send" in channel)) {
+      console.error(`[discord] Channel ${id} not found or not text-based`);
+      return;
+    }
+
+    const truncated = text.length > DISCORD_MAX_LENGTH
+      ? text.slice(0, DISCORD_MAX_LENGTH - 4) + "..."
+      : text;
+
+    try {
+      await (channel as { send: (content: string) => Promise<unknown> }).send(truncated);
+    } catch (err) {
+      console.error("[discord] sendMessage failed:", err);
+    }
+  }
+
   async start(): Promise<void> {
     await this.client.login(this.token);
     await new Promise<void>((resolve) => {
