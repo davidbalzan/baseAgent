@@ -23,6 +23,7 @@ export const messages = sqliteTable("messages", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   iteration: integer("iteration").notNull(),
+  position: integer("position").notNull(),
   timestamp: text("timestamp").notNull(),
 });
 

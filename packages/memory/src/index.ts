@@ -5,4 +5,8 @@ export { sessions, messages, toolExecutions, traces } from "./db/schema.js";
 export { SessionRepository } from "./repositories/session.repository.js";
 export type { CreateSessionInput } from "./repositories/session.repository.js";
 export { TraceRepository } from "./repositories/trace.repository.js";
+export { MessageRepository } from "./repositories/message.repository.js";
+export type { SerializedMessage } from "./repositories/message.repository.js";
+export { deserializeMessages } from "./repositories/message-deserializer.js";
+export type { DeserializedSession, RestoredMessage } from "./repositories/message-deserializer.js";
 export { loadMemoryFiles } from "./files/memory-loader.js";

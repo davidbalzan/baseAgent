@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS messages (
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   iteration INTEGER NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
   timestamp TEXT NOT NULL
 );
 
@@ -57,5 +58,12 @@ export function pushSchema(db: AppDatabase): void {
   const statements = CREATE_TABLES_SQL.trim().split(";").filter((s) => s.trim());
   for (const stmt of statements) {
     db.run(/* sql */ `${stmt.trim()}`);
+  }
+
+  // Migration: add position column for existing databases
+  try {
+    db.run(/* sql */ `ALTER TABLE messages ADD COLUMN position INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists — safe to ignore
   }
 }

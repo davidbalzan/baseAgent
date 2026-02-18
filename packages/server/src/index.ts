@@ -12,12 +12,15 @@ import {
   resolveModel,
   runAgentLoop,
   LoopEmitter,
+  type LoopState,
 } from "@baseagent/core";
 import {
   initDatabase,
   pushSchema,
   SessionRepository,
   TraceRepository,
+  MessageRepository,
+  deserializeMessages,
   loadMemoryFiles,
 } from "@baseagent/memory";
 import {
@@ -98,6 +101,19 @@ async function main() {
   // 6. Create repositories
   const sessionRepo = new SessionRepository(db);
   const traceRepo = new TraceRepository(db);
+  const messageRepo = new MessageRepository(db);
+
+  // Helper: persist messages after a loop run
+  function persistMessages(
+    sessionId: string,
+    result: { messages: Array<{ role: string; content: unknown }>; toolMessageMeta: Array<{ messageIndex: number; iteration: number }> },
+  ): void {
+    const iterationMap = new Map<number, number>();
+    for (const meta of result.toolMessageMeta) {
+      iterationMap.set(meta.messageIndex, meta.iteration);
+    }
+    messageRepo.saveSessionMessages(sessionId, result.messages, iterationMap);
+  }
 
   // 7. Build Hono app
   const app = new Hono();
@@ -142,7 +158,8 @@ async function main() {
       toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
     }, emitter);
 
-    // Update session with results
+    // Persist messages + update session with results
+    persistMessages(session.id, result);
     sessionRepo.updateStatus(session.id, result.state.status, result.output);
     sessionRepo.updateUsage(session.id, {
       totalTokens: result.state.totalTokens,
@@ -154,6 +171,106 @@ async function main() {
 
     return c.json({
       sessionId: result.sessionId,
+      output: result.output,
+      usage: {
+        totalTokens: result.state.totalTokens,
+        promptTokens: result.state.promptTokens,
+        completionTokens: result.state.completionTokens,
+        estimatedCostUsd: result.state.estimatedCostUsd,
+        iterations: result.state.iteration,
+      },
+      status: result.state.status,
+    });
+  });
+
+  // POST /resume — continue an interrupted session
+  const RESUMABLE_STATUSES = new Set(["timeout", "cost_limit", "failed"]);
+
+  app.post("/resume", async (c) => {
+    const body = await c.req.json<{ sessionId: string; input?: string }>();
+
+    if (!body.sessionId || typeof body.sessionId !== "string") {
+      return c.json({ error: "Missing 'sessionId' field" }, 400);
+    }
+
+    // 1. Load session
+    const session = sessionRepo.findById(body.sessionId);
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    // 2. Validate resumable status
+    if (!RESUMABLE_STATUSES.has(session.status)) {
+      return c.json(
+        { error: `Session status '${session.status}' is not resumable` },
+        409,
+      );
+    }
+
+    // 3. Load and deserialize messages
+    const rows = messageRepo.loadSessionMessages(body.sessionId);
+    if (rows.length === 0) {
+      return c.json({ error: "No messages found for session" }, 404);
+    }
+
+    const { messages: restoredMessages, toolMessageMeta } =
+      deserializeMessages(rows);
+
+    // 4. Append new user input if provided
+    if (body.input) {
+      restoredMessages.push({ role: "user", content: body.input });
+    }
+
+    // 5. Reconstruct initial state from session row
+    const initialState: Partial<LoopState> = {
+      iteration: session.iterations,
+      totalTokens: session.totalTokens,
+      promptTokens: session.promptTokens,
+      completionTokens: session.completionTokens,
+      estimatedCostUsd: session.totalCostUsd,
+    };
+
+    // 6. Set up emitter + run loop
+    const emitter = new LoopEmitter();
+    emitter.on("trace", (event) => {
+      traceRepo.insert(event);
+    });
+
+    const executeTool = createToolExecutor((name) => registry.get(name));
+
+    const result = await runAgentLoop(body.input ?? "", {
+      model,
+      systemPrompt,
+      tools: registry.getAll(),
+      executeTool,
+      maxIterations: config.agent.maxIterations,
+      timeoutMs: config.agent.timeoutMs,
+      costCapUsd: config.agent.costCapUsd,
+      sessionId: body.sessionId,
+      compactionThreshold: config.memory.compactionThreshold,
+      workspacePath,
+      toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
+      toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      initialMessages: restoredMessages as any,
+      initialToolMessageMeta: toolMessageMeta,
+      initialState,
+    }, emitter);
+
+    // 7. Persist updated state
+    persistMessages(body.sessionId, result);
+    sessionRepo.updateStatus(body.sessionId, result.state.status, result.output);
+    sessionRepo.updateUsage(body.sessionId, {
+      totalTokens: result.state.totalTokens,
+      promptTokens: result.state.promptTokens,
+      completionTokens: result.state.completionTokens,
+      totalCostUsd: result.state.estimatedCostUsd,
+      iterations: result.state.iteration,
+    });
+
+    return c.json({
+      resumed: true,
+      sessionId: body.sessionId,
       output: result.output,
       usage: {
         totalTokens: result.state.totalTokens,
@@ -216,6 +333,7 @@ async function main() {
         toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
       }, emitter);
 
+      persistMessages(session.id, result);
       sessionRepo.updateStatus(session.id, result.state.status, result.output);
       sessionRepo.updateUsage(session.id, {
         totalTokens: result.state.totalTokens,

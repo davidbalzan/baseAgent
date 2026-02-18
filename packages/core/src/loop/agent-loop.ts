@@ -19,12 +19,17 @@ export interface AgentLoopOptions {
   workspacePath?: string;
   toolOutputDecayIterations?: number;
   toolOutputDecayThresholdChars?: number;
+  initialMessages?: CoreMessage[];
+  initialToolMessageMeta?: ToolMessageMeta[];
+  initialState?: Partial<LoopState>;
 }
 
 export interface AgentLoopResult {
   sessionId: string;
   output: string;
   state: LoopState;
+  messages: CoreMessage[];
+  toolMessageMeta: ToolMessageMeta[];
 }
 
 function toolsToSdkFormat(tools: Record<string, ToolDefinition>): Record<string, CoreTool> {
@@ -78,24 +83,34 @@ export async function runAgentLoop(
     workspacePath,
     toolOutputDecayIterations,
     toolOutputDecayThresholdChars,
+    initialMessages,
+    initialToolMessageMeta,
+    initialState,
   } = options;
 
   const sessionId = providedSessionId ?? randomUUID();
   const loopEmitter = emitter ?? new LoopEmitter();
   const state = createLoopState();
+  if (initialState) {
+    Object.assign(state, initialState);
+  }
   state.status = "running";
 
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
-  const messages: CoreMessage[] = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: input },
-  ];
+  const messages: CoreMessage[] = initialMessages
+    ? [...initialMessages]
+    : [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: input },
+      ];
 
   const sdkTools = toolsToSdkFormat(tools);
   let finalOutput = "";
-  const toolMessageMeta: ToolMessageMeta[] = [];
+  const toolMessageMeta: ToolMessageMeta[] = initialToolMessageMeta
+    ? [...initialToolMessageMeta]
+    : [];
 
   emitTrace(loopEmitter, sessionId, "session_start", 0, { input });
 
@@ -278,5 +293,5 @@ export async function runAgentLoop(
 
   loopEmitter.emit("finish", finalOutput);
 
-  return { sessionId, output: finalOutput, state };
+  return { sessionId, output: finalOutput, state, messages, toolMessageMeta };
 }
