@@ -20,18 +20,27 @@ export function createLoopState(): LoopState {
   };
 }
 
-const COST_PER_M_INPUT = 3;
-const COST_PER_M_OUTPUT = 15;
+export interface ModelPricing {
+  costPerMInputTokens: number;
+  costPerMOutputTokens: number;
+}
+
+// Conservative defaults — overridden by llm config in practice.
+const DEFAULT_PRICING: ModelPricing = {
+  costPerMInputTokens: 0.075,
+  costPerMOutputTokens: 0.30,
+};
 
 export function updateUsage(
   state: LoopState,
   promptTokens: number,
   completionTokens: number,
+  pricing: ModelPricing = DEFAULT_PRICING,
 ): void {
   state.promptTokens += promptTokens;
   state.completionTokens += completionTokens;
   state.totalTokens = state.promptTokens + state.completionTokens;
   state.estimatedCostUsd =
-    (state.promptTokens / 1_000_000) * COST_PER_M_INPUT +
-    (state.completionTokens / 1_000_000) * COST_PER_M_OUTPUT;
+    (state.promptTokens / 1_000_000) * pricing.costPerMInputTokens +
+    (state.completionTokens / 1_000_000) * pricing.costPerMOutputTokens;
 }

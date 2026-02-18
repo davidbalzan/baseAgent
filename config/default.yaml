@@ -6,11 +6,17 @@ llm:
   provider: openrouter
   model: google/gemini-2.0-flash-001
   apiKey: ${OPENROUTER_API_KEY}
+  costPerMInputTokens: 0.10    # USD per 1M input tokens  (Gemini 2.0 Flash via OpenRouter)
+  costPerMOutputTokens: 0.40   # USD per 1M output tokens (Gemini 2.0 Flash via OpenRouter)
+  # conversationHistoryTokenBudget: 80000  # per-model override (Gemini has 1M context)
 
   # Fallback chain: if primary model fails, try these in order
   fallbackModels:
     - provider: openrouter
       model: z-ai/glm-5
+      # costPerMInputTokens: 0.00
+      # costPerMOutputTokens: 0.00
+      # conversationHistoryTokenBudget: 8000  # smaller context window
 
   # Provider-specific overrides (used when provider is switched)
   providers:
@@ -45,6 +51,7 @@ memory:
   maxTokenBudget: 8000
   toolOutputDecayIterations: 3
   toolOutputDecayThresholdChars: 500
+  conversationHistoryTokenBudget: 40000  # default token budget for conversation history
 
 heartbeat:
   enabled: false
@@ -59,7 +66,7 @@ heartbeat:
 governance:
   read: auto-allow
   write: confirm
-  exec: confirm
+  exec: auto-allow
   # toolOverrides:
   #   memory_write: auto-allow
   #   shell_exec: deny

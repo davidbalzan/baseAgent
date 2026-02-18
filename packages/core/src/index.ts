@@ -35,13 +35,14 @@ export { loadConfig } from "./config/loader.js";
 export { resolveModel, resolveSingleModel } from "./model/resolver.js";
 export { createFallbackModel } from "./model/fallback-model.js";
 export type { FallbackCallback } from "./model/fallback-model.js";
-export type { LanguageModel } from "ai";
+export { fetchOpenRouterPricing } from "./model/openrouter-pricing.js";
+export type { LanguageModel, CoreMessage } from "ai";
 
 // Loop
 export { LoopEmitter } from "./loop/loop-events.js";
 export type { LoopEventMap, SessionCompletePayload } from "./loop/loop-events.js";
 export { createLoopState, updateUsage } from "./loop/loop-state.js";
-export type { LoopState } from "./loop/loop-state.js";
+export type { LoopState, ModelPricing } from "./loop/loop-state.js";
 export { runAgentLoop } from "./loop/agent-loop.js";
 export type { AgentLoopOptions, AgentLoopResult } from "./loop/agent-loop.js";
 export { compactMessages, persistCompactionSummary, decayToolOutputs } from "./loop/compaction.js";

@@ -79,6 +79,7 @@ describe("createWebhookRoute", () => {
       maxTokenBudget: 8000,
       toolOutputDecayIterations: 3,
       toolOutputDecayThresholdChars: 500,
+      conversationHistoryTokenBudget: 40000,
     },
     server: { port: 3000, host: "0.0.0.0" },
     webhook: { enabled: true },

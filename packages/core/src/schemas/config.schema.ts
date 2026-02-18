@@ -15,11 +15,20 @@ const ProviderOverridesSchema = z.object({
   ollama: z.object({ baseUrl: optionalString }).optional(),
 });
 
+const ModelPricingSchema = z.object({
+  /** Cost in USD per 1M input (prompt) tokens. */
+  costPerMInputTokens: z.number().nonnegative().optional(),
+  /** Cost in USD per 1M output (completion) tokens. */
+  costPerMOutputTokens: z.number().nonnegative().optional(),
+});
+
 const FallbackModelSchema = z.object({
   provider: LlmProviderSchema,
   model: z.string(),
   apiKey: optionalString,
-});
+  /** Token budget for conversation history when this model is active. */
+  conversationHistoryTokenBudget: z.number().int().positive().optional(),
+}).merge(ModelPricingSchema);
 
 const LlmConfigSchema = z.object({
   provider: LlmProviderSchema,
@@ -27,7 +36,9 @@ const LlmConfigSchema = z.object({
   apiKey: optionalString,
   providers: ProviderOverridesSchema.optional(),
   fallbackModels: z.array(FallbackModelSchema).optional(),
-});
+  /** Token budget for conversation history. Overrides memory.conversationHistoryTokenBudget. */
+  conversationHistoryTokenBudget: z.number().int().positive().optional(),
+}).merge(ModelPricingSchema);
 
 const ChannelConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -59,6 +70,8 @@ const MemoryConfigSchema = z.object({
   maxTokenBudget: z.number().int().positive().default(8000),
   toolOutputDecayIterations: z.number().int().positive().default(3),
   toolOutputDecayThresholdChars: z.number().int().positive().default(500),
+  /** Default token budget for conversation history. Can be overridden per-model in llm config. */
+  conversationHistoryTokenBudget: z.number().int().positive().default(40000),
 });
 
 const HeartbeatConfigSchema = z.object({

@@ -18,7 +18,7 @@ export function createMemoryWriteTool(workspacePath: string): ToolDefinition<typ
   return {
     name: "memory_write",
     description:
-      "Append a timestamped entry to one of the agent's writable memory files. Only MEMORY.md and USER.md can be written to. SOUL.md and HEARTBEAT.md are read-only.",
+      "Append a timestamped entry to one of the agent's writable memory files. Only MEMORY.md and USER.md can be written to. SOUL.md, PERSONALITY.md, and HEARTBEAT.md are read-only.",
     parameters,
     permission: "write",
     execute: async (args) => {

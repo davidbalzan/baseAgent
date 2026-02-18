@@ -45,5 +45,11 @@ export function createDashboardApi(deps: DashboardApiDeps) {
     return c.json({ traces });
   });
 
+  // GET /api/costs — aggregate cost analytics
+  app.get("/api/costs", (c) => {
+    const aggregates = sessionRepo.getCostAggregates();
+    return c.json(aggregates);
+  });
+
   return app;
 }

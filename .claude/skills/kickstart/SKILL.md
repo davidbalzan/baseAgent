@@ -49,7 +49,33 @@ Create or update the project folder structure:
 └── CURRENT_FOCUS.md
 ```
 
-### Stage 2: Agent Persona (SOUL.md)
+### Stage 2: Rename Template Identity
+
+Using the project name from Stage 1, rename all `baseAgent` / `@baseagent` references to the new project identity. This is a mechanical step — do not ask the user for input, just execute it.
+
+**Package scope** — rename `@baseagent/` to `@<newname>/` in:
+- All `package.json` files (`name` and `dependencies` fields)
+- All `.ts` import statements across `packages/` and `skills/`
+- Root `package.json` `name` field and `dev` script filter
+- Then run `pnpm install` to regenerate `pnpm-lock.yaml`
+
+**Display name** — replace `baseAgent` with the new project name in:
+- `workspace/SOUL.md` — agent name in Identity section
+- `config/default.yaml` — top comment
+- `packages/server/src/index.ts` — startup log message
+- `packages/server/src/dashboard/index.html` — page title and header
+- `packages/tools/src/built-in/web-fetch.tool.ts` — User-Agent string
+- `README.md` — all references
+- `.github/copilot-instructions.md` — project description
+
+**Files to skip** (documentation history, not functional):
+- `docs/PRD.md`, `docs/DECISIONS.md`, `docs/REFERENCE_PI_MONO.md` — these reference baseAgent as the template origin; update only the title/header, leave ADR body text as historical context
+- `.claude/skills/` — these reference baseAgent as the template; update the kickstart skill's own references to use the new name
+- `CURRENT_FOCUS.md` — will be regenerated in Stage 6
+
+After renaming, run `pnpm build` to verify everything compiles.
+
+### Stage 3: Agent Persona (SOUL.md)
 
 Ask about the agent's personality:
 
@@ -61,21 +87,20 @@ Ask about the agent's personality:
 
 Generate `workspace/SOUL.md` with the persona definition.
 
-### Stage 3: Channel Configuration
+### Stage 4: Channel Configuration
 
 Ask which messaging channels to enable:
 
 - **Telegram** - Bot API token needed
-- **Discord** - Bot token + guild ID needed
-- **WhatsApp** - Baileys or Cloud API setup
-- **Slack** - Bolt app credentials needed
+- **Discord** - Bot token needed
+- **Slack** - Bot token + app token (Socket Mode) needed
 - **Other** - Custom adapter planned?
 
 For each selected channel, note required credentials (don't collect them — just document what's needed).
 
 Generate initial `config/default.yaml` with channel configuration placeholders.
 
-### Stage 4: Domain Skills & Tools
+### Stage 5: Domain Skills & Tools
 
 Ask about the agent's specialization:
 
@@ -88,7 +113,7 @@ Generate:
 - Skeleton skill folders in `skills/` for each domain capability
 - Update `TOOLS_PREFERENCE.md` with any new tool dependencies
 
-### Stage 5: Tech Stack Decisions
+### Stage 6: Tech Stack Decisions
 
 Confirm or customize the inherited defaults:
 
@@ -104,7 +129,7 @@ Generate:
 - `docs/TECH_STACK.md` - Technology choices and versions
 - `docs/DECISIONS.md` - ADRs for any deviations from baseAgent defaults
 
-### Stage 6: Project Phases
+### Stage 7: Project Phases
 
 Based on the agent's scope, suggest a phase structure:
 
@@ -123,7 +148,7 @@ Generate:
 - `docs/phases/phase1/README.md` - First phase outline
 - `CURRENT_FOCUS.md` - Set to Phase 1
 
-### Stage 7: Summary & Next Steps
+### Stage 8: Summary & Next Steps
 
 Provide a summary of everything created:
 
@@ -159,12 +184,13 @@ Provide a summary of everything created:
 ```
 1. Greet and explain: "Let's set up a new agentic app from baseAgent"
 2. Stage 1: Project identity → folder structure
-3. Stage 2: Agent persona → SOUL.md
-4. Stage 3: Channel selection → config/default.yaml
-5. Stage 4: Domain skills → HEARTBEAT.md, skill skeletons
-6. Stage 5: Tech stack confirmation → TECH_STACK.md, DECISIONS.md
-7. Stage 6: Define phases → PRODUCTION_ROADMAP.md, phases/
-8. Stage 7: Summary and next steps
+3. Stage 2: Rename template identity → @baseagent/* → @<newname>/*, pnpm install, pnpm build
+4. Stage 3: Agent persona → SOUL.md
+5. Stage 4: Channel selection → config/default.yaml
+6. Stage 5: Domain skills → HEARTBEAT.md, skill skeletons
+7. Stage 6: Tech stack confirmation → TECH_STACK.md, DECISIONS.md
+8. Stage 7: Define phases → PRODUCTION_ROADMAP.md, phases/
+9. Stage 8: Summary and next steps
 ```
 
 ## Tips

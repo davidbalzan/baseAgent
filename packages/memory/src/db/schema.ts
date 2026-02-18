@@ -4,6 +4,7 @@ export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
   status: text("status").notNull().default("pending"),
   channelId: text("channel_id"),
+  model: text("model"),
   input: text("input").notNull(),
   output: text("output"),
   totalTokens: integer("total_tokens").notNull().default(0),

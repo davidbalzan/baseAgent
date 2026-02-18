@@ -9,13 +9,27 @@ interface MemoryFile {
 
 const MEMORY_FILES: MemoryFile[] = [
   { name: "Soul", filename: "SOUL.md", priority: 1 },
-  { name: "User", filename: "USER.md", priority: 2 },
-  { name: "Memory", filename: "MEMORY.md", priority: 3 },
-  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 4 },
+  { name: "Personality", filename: "PERSONALITY.md", priority: 2 },
+  { name: "User", filename: "USER.md", priority: 3 },
+  { name: "Memory", filename: "MEMORY.md", priority: 4 },
+  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 5 },
 ];
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+export function parseBotName(workspacePath: string): string {
+  const filePath = resolve(workspacePath, "SOUL.md");
+  if (!existsSync(filePath)) return "baseAgent";
+
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const match = content.match(/\*\*Name\*\*:\s*(.+)/);
+    return match ? match[1].trim() : "baseAgent";
+  } catch {
+    return "baseAgent";
+  }
 }
 
 export function loadMemoryFiles(

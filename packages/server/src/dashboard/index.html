@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>baseAgent — Trace Replay</title>
+<title>__BOT_NAME__ — Dashboard</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
 
@@ -647,6 +647,249 @@ body::before {
   color: var(--text-2);
 }
 
+.channel-tag.ch-telegram { background: rgba(79, 143, 255, 0.12); color: var(--blue); }
+.channel-tag.ch-discord { background: rgba(160, 111, 255, 0.12); color: var(--violet); }
+.channel-tag.ch-slack { background: rgba(79, 255, 143, 0.12); color: var(--green); }
+.channel-tag.ch-http { background: rgba(255, 159, 67, 0.12); color: var(--orange); }
+.channel-tag.ch-model { background: rgba(79, 240, 224, 0.12); color: var(--cyan); }
+
+/* ─── TAB NAVIGATION ─── */
+.tab-nav {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-2);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.tab-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 5px 14px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+
+.tab-btn:hover { color: var(--text-1); }
+
+.tab-btn.active {
+  background: var(--accent);
+  color: var(--bg-0);
+  font-weight: 600;
+}
+
+/* ─── COSTS VIEW ─── */
+.costs-view {
+  display: none;
+  grid-column: 1 / -1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-3) transparent;
+  padding: 24px 28px;
+}
+
+.costs-view.active { display: block; }
+
+.costs-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  animation: fadeUp 0.3s var(--ease);
+}
+
+.costs-section {
+  margin-bottom: 28px;
+}
+
+.costs-section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  margin-bottom: 12px;
+}
+
+/* Summary cards row for costs */
+.costs-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-bottom: 28px;
+}
+
+.costs-stats-row .stat-card:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.costs-stats-row .stat-card:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+
+/* Daily chart */
+.daily-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 160px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.daily-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.daily-bar {
+  width: 100%;
+  max-width: 24px;
+  background: var(--accent);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  position: relative;
+  transition: opacity 0.15s;
+}
+
+.daily-bar:hover { opacity: 0.8; }
+
+.daily-bar-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-0);
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.daily-bar:hover .daily-bar-tooltip { display: block; }
+
+.daily-bar-date {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-2);
+  margin-top: 6px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  max-height: 40px;
+  overflow: hidden;
+}
+
+/* Channel / Status bars */
+.h-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.h-bar-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-1);
+  min-width: 100px;
+  text-align: right;
+}
+
+.h-bar-track {
+  flex: 1;
+  height: 22px;
+  background: var(--bg-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.h-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--bg-0);
+  min-width: fit-content;
+  transition: width 0.4s var(--ease);
+}
+
+.h-bar-fill.accent { background: var(--accent); }
+.h-bar-fill.blue { background: var(--blue); color: var(--text-0); }
+.h-bar-fill.cyan { background: var(--cyan); }
+.h-bar-fill.violet { background: var(--violet); color: var(--text-0); }
+.h-bar-fill.green { background: var(--green); }
+.h-bar-fill.orange { background: var(--orange); }
+.h-bar-fill.red { background: var(--red); }
+
+.h-bar-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  min-width: 70px;
+}
+
+/* Top sessions table */
+.top-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.top-table th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.top-table td {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-1);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--bg-2);
+}
+
+.top-table tr:hover td { background: var(--bg-2); }
+
+.top-table .link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.top-table .link:hover { text-decoration: underline; }
+
+.costs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 24px;
+}
+
+/* Hide traces layout when costs tab is active */
+.shell.costs-active .sidebar,
+.shell.costs-active .main { display: none; }
+
 /* ─── RESPONSIVE ─── */
 @media (max-width: 768px) {
   .shell {
@@ -661,6 +904,11 @@ body::before {
   .stats-row { flex-wrap: wrap; }
   .stat-card { min-width: calc(50% - 2px); }
   .stat-card:first-child, .stat-card:last-child { border-radius: var(--radius); }
+  .costs-stats-row { grid-template-columns: repeat(2, 1fr); }
+  .costs-stats-row .stat-card:first-child,
+  .costs-stats-row .stat-card:last-child { border-radius: var(--radius); }
+  .costs-stats-row .stat-card { border-radius: var(--radius); }
+  .costs-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -671,10 +919,13 @@ body::before {
   <header class="topbar">
     <div class="topbar-brand">
       <span class="dot"></span>
-      baseAgent
+      __BOT_NAME__
     </div>
     <div class="topbar-sep"></div>
-    <span class="topbar-label">Trace Replay</span>
+    <div class="tab-nav" id="tab-nav">
+      <button class="tab-btn active" data-tab="traces" onclick="switchTab('traces')">Traces</button>
+      <button class="tab-btn" data-tab="costs" onclick="switchTab('costs')">Costs</button>
+    </div>
     <div class="topbar-right">
       <span class="topbar-stat" id="stat-sessions">Sessions: <strong>--</strong></span>
       <span class="topbar-stat" id="stat-uptime">Uptime: <strong>--</strong></span>
@@ -702,6 +953,11 @@ body::before {
       </div>
     </div>
   </main>
+
+  <!-- COSTS VIEW -->
+  <section class="costs-view" id="costs-view">
+    <div class="loading" style="height:200px"><div class="loading-spinner"></div></div>
+  </section>
 </div>
 
 <script>
@@ -790,7 +1046,7 @@ function renderSessionList(filter = '') {
           <span class="badge ${statusClass}">${s.status}</span>
           <span class="meta-item">${s.iterations || 0} iter</span>
           <span class="meta-item">$${(s.totalCostUsd || 0).toFixed(4)}</span>
-          ${s.channelId ? `<span class="channel-tag">${escapeHtml(s.channelId.split(':')[0])}</span>` : ''}
+          ${s.channelId ? `<span class="channel-tag ${channelColorClass(s.channelId)}">${escapeHtml(s.channelId.split(':')[0])}</span>` : ''}
         </div>
       </div>
     `;
@@ -832,7 +1088,7 @@ function renderDetail(session, traces) {
       <div class="detail-header">
         <div class="detail-header-top">
           <div>
-            <div class="detail-session-id">${session.id}</div>
+            <div class="detail-session-id">${session.id}${session.channelId ? ` <span class="channel-tag ${channelColorClass(session.channelId)}">${escapeHtml(session.channelId.split(':')[0])}</span>` : ''}${session.channelId && session.channelId.includes(':') ? ` <span class="channel-tag" style="background:rgba(232,232,237,0.08);color:var(--text-1)">user:${escapeHtml(session.channelId.split(':').slice(1).join(':'))}</span>` : ''}${session.model ? ` <span class="channel-tag ch-model">${escapeHtml(session.model)}</span>` : ''}</div>
             <div class="detail-input">${escapeHtml(truncate(inputDisplay, 200))}</div>
           </div>
           <span class="badge badge-${session.status}" style="flex-shrink:0">${session.status}</span>
@@ -1024,6 +1280,15 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
+function channelColorClass(channelId) {
+  const ch = (channelId || '').split(':')[0].toLowerCase();
+  if (ch === 'telegram') return 'ch-telegram';
+  if (ch === 'discord') return 'ch-discord';
+  if (ch === 'slack') return 'ch-slack';
+  if (ch === 'http' || ch === 'webhook') return 'ch-http';
+  return '';
+}
+
 function stripPromptPrefix(input) {
   // Strip common prompt prefixes from heartbeat/webhook system prompts
   if (input.startsWith('You are running a scheduled heartbeat')) {
@@ -1068,6 +1333,189 @@ function navigateSession(dir) {
   if (next >= 0 && next < sessions.length) {
     selectSession(sessions[next].id);
   }
+}
+
+// ─── TAB SWITCHING ───
+const $shell = document.querySelector('.shell');
+const $costsView = document.getElementById('costs-view');
+let currentTab = 'traces';
+let costsData = null;
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+
+  if (tab === 'costs') {
+    $shell.classList.add('costs-active');
+    $costsView.classList.add('active');
+    if (!costsData) loadCosts();
+  } else {
+    $shell.classList.remove('costs-active');
+    $costsView.classList.remove('active');
+  }
+}
+
+async function loadCosts() {
+  $costsView.innerHTML = '<div class="loading" style="height:200px"><div class="loading-spinner"></div></div>';
+  try {
+    costsData = await fetchJSON('/api/costs');
+    renderCosts(costsData);
+  } catch (e) {
+    $costsView.innerHTML = `<div class="empty-state"><div class="empty-state-text">Failed to load cost data: ${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+function renderCosts(data) {
+  const { totals, daily, byChannel, byModel, byStatus, topSessions } = data;
+  const avgCost = totals.sessions > 0 ? (totals.cost / totals.sessions) : 0;
+
+  const statusColors = { completed: 'green', failed: 'red', timeout: 'orange', cost_limit: 'orange', running: 'blue', pending: 'violet' };
+  const channelColors = ['accent', 'blue', 'cyan', 'violet', 'orange', 'green'];
+  const modelColors = ['cyan', 'violet', 'blue', 'accent', 'orange', 'green'];
+
+  const maxDaily = Math.max(...daily.map(d => d.cost), 0.0001);
+  const maxChannelCost = Math.max(...byChannel.map(c => c.cost), 0.0001);
+  const maxModelCost = Math.max(...byModel.map(m => m.cost), 0.0001);
+  const maxStatusCost = Math.max(...byStatus.map(s => s.cost), 0.0001);
+
+  $costsView.innerHTML = `
+    <div class="costs-content">
+      <div class="costs-stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Total Cost</div>
+          <div class="stat-value accent">$${totals.cost.toFixed(4)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Sessions</div>
+          <div class="stat-value">${totals.sessions}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Tokens</div>
+          <div class="stat-value">${formatNumber(totals.tokens)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Cost / Session</div>
+          <div class="stat-value accent">$${avgCost.toFixed(4)}</div>
+        </div>
+      </div>
+
+      <div class="costs-section">
+        <div class="costs-section-title">Daily Cost (Last 30 Days)</div>
+        ${daily.length > 0 ? `
+        <div class="daily-chart">
+          ${daily.map(d => {
+            const pct = (d.cost / maxDaily) * 100;
+            const label = d.date.slice(5); // MM-DD
+            return `
+              <div class="daily-bar-wrap">
+                <div class="daily-bar" style="height:${Math.max(pct, 1)}%">
+                  <div class="daily-bar-tooltip">${d.date}<br>$${d.cost.toFixed(4)} · ${formatNumber(d.tokens)} tok · ${d.sessions} sess</div>
+                </div>
+                <span class="daily-bar-date">${label}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ` : '<div class="empty-state-text">No data in the last 30 days.</div>'}
+      </div>
+
+      <div class="costs-grid">
+        <div class="costs-section">
+          <div class="costs-section-title">Cost by Channel</div>
+          ${byChannel.map((ch, i) => {
+            const pct = (ch.cost / maxChannelCost) * 100;
+            const color = channelColors[i % channelColors.length];
+            const label = ch.channel.includes(':') ? ch.channel.split(':')[0] : ch.channel;
+            return `
+              <div class="h-bar-row">
+                <span class="h-bar-label">${escapeHtml(label)}</span>
+                <div class="h-bar-track">
+                  <div class="h-bar-fill ${color}" style="width:${Math.max(pct, 2)}%">$${ch.cost.toFixed(4)}</div>
+                </div>
+                <span class="h-bar-value">${ch.sessions} sess</span>
+              </div>
+            `;
+          }).join('')}
+          ${byChannel.length === 0 ? '<div class="empty-state-text">No channel data.</div>' : ''}
+        </div>
+
+        <div class="costs-section">
+          <div class="costs-section-title">Cost by Model</div>
+          ${byModel.map((m, i) => {
+            const pct = (m.cost / maxModelCost) * 100;
+            const color = modelColors[i % modelColors.length];
+            return `
+              <div class="h-bar-row">
+                <span class="h-bar-label">${escapeHtml(m.model)}</span>
+                <div class="h-bar-track">
+                  <div class="h-bar-fill ${color}" style="width:${Math.max(pct, 2)}%">$${m.cost.toFixed(4)}</div>
+                </div>
+                <span class="h-bar-value">${m.sessions} sess</span>
+              </div>
+            `;
+          }).join('')}
+          ${byModel.length === 0 ? '<div class="empty-state-text">No model data.</div>' : ''}
+        </div>
+
+        <div class="costs-section">
+          <div class="costs-section-title">Cost by Status</div>
+          ${byStatus.map(s => {
+            const pct = (s.cost / maxStatusCost) * 100;
+            const color = statusColors[s.status] || 'accent';
+            return `
+              <div class="h-bar-row">
+                <span class="h-bar-label">${escapeHtml(s.status)}</span>
+                <div class="h-bar-track">
+                  <div class="h-bar-fill ${color}" style="width:${Math.max(pct, 2)}%">$${s.cost.toFixed(4)}</div>
+                </div>
+                <span class="h-bar-value">${s.sessions} sess</span>
+              </div>
+            `;
+          }).join('')}
+          ${byStatus.length === 0 ? '<div class="empty-state-text">No status data.</div>' : ''}
+        </div>
+      </div>
+
+      <div class="costs-section">
+        <div class="costs-section-title">Top 10 Most Expensive Sessions</div>
+        ${topSessions.length > 0 ? `
+        <table class="top-table">
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Channel</th>
+              <th>Input</th>
+              <th>Cost</th>
+              <th>Tokens</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${topSessions.map(s => `
+              <tr>
+                <td><span class="link" onclick="goToSession('${s.id}')">${s.id.slice(0, 8)}</span></td>
+                <td>${s.channelId ? `<span class="channel-tag ${channelColorClass(s.channelId)}">${escapeHtml(s.channelId.split(':')[0])}</span>` : '<span style="color:var(--text-2)">—</span>'}</td>
+                <td>${escapeHtml(truncate(stripPromptPrefix(s.input || ''), 50))}</td>
+                <td style="color:var(--accent)">$${(s.cost || 0).toFixed(4)}</td>
+                <td>${formatNumber(s.tokens || 0)}</td>
+                <td><span class="badge badge-${s.status}">${s.status}</span></td>
+                <td>${formatTime(s.createdAt)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ` : '<div class="empty-state-text">No sessions yet.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function goToSession(id) {
+  switchTab('traces');
+  selectSession(id);
 }
 
 // ─── BOOT ───

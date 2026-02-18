@@ -46,16 +46,8 @@ export class DiscordAdapter implements ChannelAdapter {
       // Ignore bot messages (including own)
       if (message.author.bot) return;
 
-      // Ignore messages from users not on the allowlist
-      if (this.allowedUserIds && !this.allowedUserIds.has(message.author.id)) return;
-
-      // Rate limit per user
-      if (this.rateLimiter) {
-        const rl = this.rateLimiter.check(message.author.id);
-        if (!rl.allowed) return;
-      }
-
-      // Check for pending confirmation first
+      // Check for pending confirmation before any rate limiting —
+      // approval replies are not new sessions and must never be blocked.
       const pending = this.pendingConfirmations.get(message.channelId);
       if (pending) {
         const reply = message.content.trim().toLowerCase();
@@ -64,6 +56,15 @@ export class DiscordAdapter implements ChannelAdapter {
         clearTimeout(pending.timer);
         pending.resolve({ approved, reason: approved ? undefined : `User replied: ${message.content}` });
         return;
+      }
+
+      // Ignore messages from users not on the allowlist
+      if (this.allowedUserIds && !this.allowedUserIds.has(message.author.id)) return;
+
+      // Rate limit per user
+      if (this.rateLimiter) {
+        const rl = this.rateLimiter.check(message.author.id);
+        if (!rl.allowed) return;
       }
 
       // Send typing indicator immediately

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   status TEXT NOT NULL DEFAULT 'pending',
   channel_id TEXT,
+  model TEXT,
   input TEXT NOT NULL,
   output TEXT,
   total_tokens INTEGER NOT NULL DEFAULT 0,
@@ -63,6 +64,13 @@ export function pushSchema(db: AppDatabase): void {
   // Migration: add position column for existing databases
   try {
     db.run(/* sql */ `ALTER TABLE messages ADD COLUMN position INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists — safe to ignore
+  }
+
+  // Migration: add model column for existing databases
+  try {
+    db.run(/* sql */ `ALTER TABLE sessions ADD COLUMN model TEXT`);
   } catch {
     // Column already exists — safe to ignore
   }

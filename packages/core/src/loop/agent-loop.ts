@@ -3,7 +3,7 @@ import { streamText, type LanguageModel, type CoreMessage, type CoreTool } from 
 import type { ToolDefinition } from "../schemas/tool.schema.js";
 import type { TraceEvent } from "../schemas/trace.schema.js";
 import { LoopEmitter } from "./loop-events.js";
-import { createLoopState, updateUsage, type LoopState } from "./loop-state.js";
+import { createLoopState, updateUsage, type LoopState, type ModelPricing } from "./loop-state.js";
 import { compactMessages, persistCompactionSummary, decayToolOutputs, type ToolMessageMeta } from "./compaction.js";
 
 export interface AgentLoopOptions {
@@ -19,6 +19,10 @@ export interface AgentLoopOptions {
   workspacePath?: string;
   toolOutputDecayIterations?: number;
   toolOutputDecayThresholdChars?: number;
+  /** Pricing rates for cost estimation. Falls back to conservative defaults if omitted. */
+  pricing?: ModelPricing;
+  /** Prior exchanges from previous sessions on the same channel, injected before the current input. */
+  conversationHistory?: CoreMessage[];
   /** Pre-existing message history for resume. When set, the `input` param is unused. */
   initialMessages?: CoreMessage[];
   initialToolMessageMeta?: ToolMessageMeta[];
@@ -92,6 +96,8 @@ export async function runAgentLoop(
     workspacePath,
     toolOutputDecayIterations,
     toolOutputDecayThresholdChars,
+    pricing,
+    conversationHistory,
     initialMessages,
     initialToolMessageMeta,
     initialState,
@@ -112,6 +118,7 @@ export async function runAgentLoop(
     ? [...initialMessages]
     : [
         { role: "system", content: systemPrompt },
+        ...(conversationHistory ?? []),
         { role: "user", content: input },
       ];
 
@@ -162,7 +169,7 @@ export async function runAgentLoop(
       }
 
       const usage = await response.usage;
-      updateUsage(state, usage.promptTokens, usage.completionTokens);
+      updateUsage(state, usage.promptTokens, usage.completionTokens, pricing);
 
       emitTrace(loopEmitter, sessionId, "reason", state.iteration, {
         text: iterationText,

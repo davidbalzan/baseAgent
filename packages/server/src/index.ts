@@ -12,7 +12,9 @@ import {
   loadConfig,
   resolveModel,
   LoopEmitter,
+  fetchOpenRouterPricing,
   type LoopState,
+  type CoreMessage,
 } from "@baseagent/core";
 import {
   initDatabase,
@@ -22,6 +24,7 @@ import {
   MessageRepository,
   deserializeMessages,
   loadMemoryFiles,
+  parseBotName,
 } from "@baseagent/memory";
 import {
   ToolRegistry,
@@ -56,6 +59,36 @@ import { createHeartbeatScheduler, type HeartbeatScheduler } from "./heartbeat.j
 import { createWebhookRoute } from "./webhook.js";
 import { createDashboardApi } from "./dashboard-api.js";
 import { SlidingWindowLimiter, createRateLimitMiddleware } from "./rate-limit.js";
+
+/**
+ * Build conversation history from recent sessions, bounded by a token budget.
+ * Sessions arrive newest-first from the DB; we greedily include the most recent
+ * exchanges that fit, then reverse to chronological order for injection.
+ */
+function buildConversationHistory(
+  sessions: Array<{ input: string; output: string | null }>,
+  tokenBudget: number,
+): CoreMessage[] | undefined {
+  const selected: Array<{ input: string; output: string }> = [];
+  let tokensUsed = 0;
+
+  for (const s of sessions) { // newest first
+    if (!s.output) continue;
+    const turnTokens = Math.ceil((s.input.length + s.output.length) / 4);
+    if (tokensUsed + turnTokens > tokenBudget) break;
+    selected.push({ input: s.input, output: s.output });
+    tokensUsed += turnTokens;
+  }
+
+  if (selected.length === 0) return undefined;
+
+  const messages: CoreMessage[] = [];
+  for (const s of selected.reverse()) { // oldest first
+    messages.push({ role: "user", content: s.input });
+    messages.push({ role: "assistant", content: s.output });
+  }
+  return messages;
+}
 
 async function main() {
   // 1. Load config
@@ -166,6 +199,17 @@ async function main() {
     console.log(`[rate-limit] ${parts.join(", ")}`);
   }
 
+  // 6d. Fetch live model pricing (OpenRouter only — non-fatal if unavailable)
+  let livePricing = undefined;
+  if (config.llm.provider === "openrouter") {
+    livePricing = await fetchOpenRouterPricing(config.llm.model);
+    if (livePricing) {
+      console.log(`[pricing] ${config.llm.model}: $${livePricing.costPerMInputTokens}/M in, $${livePricing.costPerMOutputTokens}/M out`);
+    } else {
+      console.warn(`[pricing] Could not fetch OpenRouter pricing for ${config.llm.model} — falling back to config`);
+    }
+  }
+
   // Shared deps for runSession
   const sessionDeps: RunSessionDeps = {
     model,
@@ -178,6 +222,7 @@ async function main() {
     messageRepo,
     governancePolicy,
     toolRateLimiter: toolLimiter,
+    pricing: livePricing,
   };
 
   // 7. Build Hono app
@@ -188,7 +233,9 @@ async function main() {
   const dashboardApi = createDashboardApi({ sessionRepo, traceRepo });
   app.route("/", dashboardApi);
 
-  const dashboardHtml = readFileSync(resolve(__dirname, "dashboard", "index.html"), "utf-8");
+  const botName = parseBotName(workspacePath);
+  const dashboardHtml = readFileSync(resolve(__dirname, "dashboard", "index.html"), "utf-8")
+    .replace(/__BOT_NAME__/g, botName);
   app.get("/dashboard", (c) => {
     return c.html(dashboardHtml);
   });
@@ -327,7 +374,7 @@ async function main() {
   const host = config.server.host;
 
   serve({ fetch: app.fetch, port, hostname: host }, (info) => {
-    console.log(`[server] baseAgent listening on http://${host}:${info.port}`);
+    console.log(`[server] ${botName} listening on http://${host}:${info.port}`);
   });
 
   // 9. Channel adapters
@@ -365,9 +412,21 @@ async function main() {
     });
 
     try {
+      // Load prior conversation history for this channel within the token budget.
+      // Budget is resolved: per-model override → memory global default.
+      const tokenBudget =
+        config.llm.conversationHistoryTokenBudget ??
+        config.memory.conversationHistoryTokenBudget;
+      const conversationHistory = message.channelId
+        ? buildConversationHistory(
+            sessionRepo.findRecentByChannelId(message.channelId),
+            tokenBudget,
+          )
+        : undefined;
+
       const confirmationDelegate = createConfirmationDelegateForChannel(message.channelId);
       const result = await runSession(
-        { input: message.text, channelId: message.channelId },
+        { input: message.text, channelId: message.channelId, conversationHistory },
         { ...sessionDeps, confirmationDelegate },
         emitter,
       );

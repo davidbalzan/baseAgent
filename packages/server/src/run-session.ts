@@ -5,7 +5,9 @@ import {
   type LoopState,
   type ToolMessageMeta,
   type LanguageModel,
+  type ModelPricing,
 } from "@baseagent/core";
+import type { CoreMessage } from "@baseagent/core";
 import type {
   SessionRepository,
   TraceRepository,
@@ -21,9 +23,20 @@ import {
   type GovernanceRateLimiter,
 } from "@baseagent/tools";
 
+/** Resolve pricing: live fetch takes precedence, then config, then loop defaults. */
+function resolvePricing(config: AppConfig, live?: ModelPricing): ModelPricing | undefined {
+  if (live) return live;
+  const input = config.llm.costPerMInputTokens;
+  const output = config.llm.costPerMOutputTokens;
+  if (input === undefined || output === undefined) return undefined;
+  return { costPerMInputTokens: input, costPerMOutputTokens: output };
+}
+
 export interface RunSessionInput {
   input: string;
   channelId?: string;
+  /** Prior exchanges from previous sessions on the same channel, for conversational continuity. */
+  conversationHistory?: CoreMessage[];
   /** Reuse an existing session ID (resume). */
   sessionId?: string;
   initialMessages?: unknown[];
@@ -47,6 +60,8 @@ export interface RunSessionDeps {
   governancePolicy?: GovernancePolicy;
   confirmationDelegate?: ConfirmationDelegate;
   toolRateLimiter?: GovernanceRateLimiter;
+  /** Live pricing fetched at startup (e.g. from OpenRouter API). Overrides config if set. */
+  pricing?: ModelPricing;
 }
 
 export interface RunSessionResult {
@@ -66,6 +81,7 @@ export async function runSession(
   const sessionId = input.sessionId ?? sessionRepo.create({
     input: input.input,
     channelId: input.channelId,
+    model: model.modelId,
   }).id;
 
   // 2. Set up emitter with trace persistence
@@ -109,6 +125,8 @@ export async function runSession(
       workspacePath,
       toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
       toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
+      pricing: resolvePricing(config, deps.pricing),
+      conversationHistory: input.conversationHistory,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initialMessages: input.initialMessages as any,
       initialToolMessageMeta: input.initialToolMessageMeta,

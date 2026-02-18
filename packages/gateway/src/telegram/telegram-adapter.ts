@@ -36,16 +36,8 @@ export class TelegramAdapter implements ChannelAdapter {
       const chatId = ctx.chat.id;
       const userId = String(ctx.from.id);
 
-      // Ignore messages from users not on the allowlist
-      if (this.allowedUserIds && !this.allowedUserIds.has(userId)) return;
-
-      // Rate limit per user
-      if (this.rateLimiter) {
-        const rl = this.rateLimiter.check(userId);
-        if (!rl.allowed) return;
-      }
-
-      // Check for pending confirmation first
+      // Check for pending confirmation before any rate limiting —
+      // approval replies are not new sessions and must never be blocked.
       const pending = this.pendingConfirmations.get(chatId);
       if (pending) {
         const reply = ctx.message.text.trim().toLowerCase();
@@ -54,6 +46,15 @@ export class TelegramAdapter implements ChannelAdapter {
         clearTimeout(pending.timer);
         pending.resolve({ approved, reason: approved ? undefined : `User replied: ${ctx.message.text}` });
         return;
+      }
+
+      // Ignore messages from users not on the allowlist
+      if (this.allowedUserIds && !this.allowedUserIds.has(userId)) return;
+
+      // Rate limit per user
+      if (this.rateLimiter) {
+        const rl = this.rateLimiter.check(userId);
+        if (!rl.allowed) return;
       }
 
       const text = ctx.message.text;
@@ -154,9 +155,9 @@ export class TelegramAdapter implements ChannelAdapter {
         }
       }, EDIT_INTERVAL_MS);
 
-      try {
-        await this.handleMessage(incoming, stream);
-      } catch (err) {
+      // Fire-and-forget: don't await so Telegraf's polling loop can
+      // continue receiving updates (e.g. governance confirmation replies).
+      this.handleMessage(incoming, stream).catch(async (err) => {
         if (!finished) {
           if (editTimer) clearInterval(editTimer);
           clearInterval(typingTimer);
@@ -164,7 +165,7 @@ export class TelegramAdapter implements ChannelAdapter {
           toolStatus = "";
           await editMessage();
         }
-      }
+      });
     });
   }
 
