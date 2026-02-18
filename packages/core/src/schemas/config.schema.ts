@@ -15,16 +15,24 @@ const ProviderOverridesSchema = z.object({
   ollama: z.object({ baseUrl: optionalString }).optional(),
 });
 
+const FallbackModelSchema = z.object({
+  provider: LlmProviderSchema,
+  model: z.string(),
+  apiKey: optionalString,
+});
+
 const LlmConfigSchema = z.object({
   provider: LlmProviderSchema,
   model: z.string(),
   apiKey: optionalString,
   providers: ProviderOverridesSchema.optional(),
+  fallbackModels: z.array(FallbackModelSchema).optional(),
 });
 
 const ChannelConfigSchema = z.object({
   enabled: z.boolean().default(false),
   token: optionalString,
+  allowedUserIds: z.array(z.string()).optional(),
 });
 
 const ChannelsConfigSchema = z.object({
@@ -56,6 +64,26 @@ const ServerConfigSchema = z.object({
   host: z.string().default("0.0.0.0"),
 });
 
+const ToolPolicySchema = z.enum(["auto-allow", "confirm", "deny"]);
+
+const GovernanceConfigSchema = z.object({
+  read: ToolPolicySchema.default("auto-allow"),
+  write: ToolPolicySchema.default("confirm"),
+  exec: ToolPolicySchema.default("confirm"),
+  toolOverrides: z.record(z.string(), ToolPolicySchema).optional(),
+});
+
+const RateLimitWindowSchema = z.object({
+  maxRequests: z.number().int().positive(),
+  windowMs: z.number().int().positive(),
+});
+
+const RateLimitConfigSchema = z.object({
+  channel: RateLimitWindowSchema.optional(),
+  http: RateLimitWindowSchema.optional(),
+  tool: RateLimitWindowSchema.optional(),
+});
+
 export const AppConfigSchema = z.object({
   llm: LlmConfigSchema,
   channels: ChannelsConfigSchema.optional(),
@@ -63,6 +91,8 @@ export const AppConfigSchema = z.object({
   memory: MemoryConfigSchema,
   heartbeat: HeartbeatConfigSchema.optional(),
   server: ServerConfigSchema,
+  governance: GovernanceConfigSchema.optional(),
+  rateLimit: RateLimitConfigSchema.optional(),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;

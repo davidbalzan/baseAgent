@@ -9,6 +9,8 @@ export const TracePhaseSchema = z.enum([
   "compaction",
   "finish",
   "error",
+  "governance",
+  "model_fallback",
 ]);
 
 export const TraceEventSchema = z.object({

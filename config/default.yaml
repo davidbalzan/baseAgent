@@ -7,6 +7,13 @@ llm:
   model: google/gemini-2.0-flash-001
   apiKey: ${OPENROUTER_API_KEY}
 
+  # Fallback chain: if primary model fails, try these in order
+  # fallbackModels:
+  #   - provider: anthropic
+  #     model: claude-sonnet-4-20250514
+  #   - provider: ollama
+  #     model: llama3
+
   # Provider-specific overrides (used when provider is switched)
   providers:
     anthropic:
@@ -20,6 +27,8 @@ channels:
   telegram:
     enabled: true
     token: ${TELEGRAM_BOT_TOKEN}
+    allowedUserIds:
+      - "1975268993"
   discord:
     enabled: true
     token: ${DISCORD_BOT_TOKEN}
@@ -39,6 +48,25 @@ heartbeat:
   enabled: false
   intervalMs: 1800000 # 30 min
   # channelId: "telegram:12345"
+
+governance:
+  read: auto-allow
+  write: confirm
+  exec: confirm
+  # toolOverrides:
+  #   memory_write: auto-allow
+  #   shell_exec: deny
+
+rateLimit:
+  channel:
+    maxRequests: 10
+    windowMs: 60000       # 10 messages/min per user
+  http:
+    maxRequests: 20
+    windowMs: 60000       # 20 requests/min per IP
+  tool:
+    maxRequests: 50
+    windowMs: 60000       # 50 tool calls/min per session
 
 server:
   port: 3000
