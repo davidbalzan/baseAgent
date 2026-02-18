@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { resolve, dirname } from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -52,6 +53,7 @@ import { healthRoute } from "./health.js";
 import { runSession, type RunSessionDeps } from "./run-session.js";
 import { createHeartbeatScheduler, type HeartbeatScheduler } from "./heartbeat.js";
 import { createWebhookRoute } from "./webhook.js";
+import { createDashboardApi } from "./dashboard-api.js";
 import { SlidingWindowLimiter, createRateLimitMiddleware } from "./rate-limit.js";
 
 async function main() {
@@ -180,6 +182,16 @@ async function main() {
   // 7. Build Hono app
   const app = new Hono();
   app.route("/", healthRoute);
+
+  // 7b. Dashboard API + static UI
+  const dashboardApi = createDashboardApi({ sessionRepo, traceRepo });
+  app.route("/", dashboardApi);
+
+  const dashboardHtml = readFileSync(resolve(__dirname, "dashboard", "index.html"), "utf-8");
+  app.get("/dashboard", (c) => {
+    return c.html(dashboardHtml);
+  });
+  console.log("[dashboard] Trace replay UI at GET /dashboard");
 
   // Apply HTTP rate limiting to /run and /resume
   if (httpLimiter) {
