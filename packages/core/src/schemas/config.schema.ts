@@ -84,6 +84,17 @@ const RateLimitConfigSchema = z.object({
   tool: RateLimitWindowSchema.optional(),
 });
 
+const SandboxLevelSchema = z.enum(["loose", "medium", "strict"]);
+
+const SandboxConfigSchema = z.object({
+  defaultLevel: SandboxLevelSchema.default("medium"),
+  toolOverrides: z.record(z.string(), SandboxLevelSchema).optional(),
+  dockerImage: z.string().default("alpine:3.19"),
+  maxMemoryMb: z.number().int().positive().default(256),
+  cpuCount: z.number().positive().default(0.5),
+  allowNetwork: z.boolean().optional(),
+});
+
 export const AppConfigSchema = z.object({
   llm: LlmConfigSchema,
   channels: ChannelsConfigSchema.optional(),
@@ -93,7 +104,10 @@ export const AppConfigSchema = z.object({
   server: ServerConfigSchema,
   governance: GovernanceConfigSchema.optional(),
   rateLimit: RateLimitConfigSchema.optional(),
+  sandbox: SandboxConfigSchema.optional(),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 export type LlmProvider = z.infer<typeof LlmProviderSchema>;
+export type SandboxLevel = z.infer<typeof SandboxLevelSchema>;
+export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;

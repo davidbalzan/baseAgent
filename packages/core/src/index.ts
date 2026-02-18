@@ -8,6 +8,8 @@ export { TracePhaseSchema, TraceEventSchema } from "./schemas/trace.schema.js";
 export type {
   AppConfig,
   LlmProvider,
+  SandboxLevel,
+  SandboxConfig,
 } from "./schemas/config.schema.js";
 export type {
   Session,

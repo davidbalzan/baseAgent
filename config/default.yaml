@@ -68,6 +68,15 @@ rateLimit:
     maxRequests: 50
     windowMs: 60000       # 50 tool calls/min per session
 
+# sandbox:
+#   defaultLevel: medium   # loose | medium | strict
+#   dockerImage: alpine:3.19
+#   maxMemoryMb: 256
+#   cpuCount: 0.5
+#   # allowNetwork: false
+#   # toolOverrides:
+#   #   shell_exec: strict
+
 server:
   port: 3000
   host: 0.0.0.0

@@ -1,4 +1,6 @@
 import type { ToolDefinition } from "@baseagent/core";
+import type { SandboxContext } from "./sandbox/types.js";
+import { applySandbox } from "./sandbox/apply.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_CHARS = 10_000;
@@ -17,6 +19,7 @@ function truncate(text: string, maxChars: number): string {
 export async function executeTool(
   tool: ToolDefinition,
   args: Record<string, unknown>,
+  sandboxCtx?: SandboxContext,
 ): Promise<ToolExecResult> {
   const timeoutMs = tool.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxOutputChars = tool.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
@@ -33,8 +36,10 @@ export async function executeTool(
       };
     }
 
-    // Execute with timeout
-    const resultPromise = tool.execute(parsed.data);
+    // Execute with timeout — route through sandbox if context provided
+    const resultPromise = sandboxCtx
+      ? applySandbox(tool, parsed.data, sandboxCtx)
+      : tool.execute(parsed.data);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Tool "${tool.name}" timed out after ${timeoutMs}ms`)), timeoutMs),
     );
@@ -54,6 +59,7 @@ export async function executeTool(
 
 export function createToolExecutor(
   getToolFn: (name: string) => ToolDefinition | undefined,
+  getSandboxCtx?: (toolName: string) => SandboxContext | undefined,
 ): (name: string, args: Record<string, unknown>) => Promise<ToolExecResult> {
   return async (name, args) => {
     const tool = getToolFn(name);
@@ -64,6 +70,7 @@ export function createToolExecutor(
         durationMs: 0,
       };
     }
-    return executeTool(tool, args);
+    const sandboxCtx = getSandboxCtx?.(name);
+    return executeTool(tool, args, sandboxCtx);
   };
 }

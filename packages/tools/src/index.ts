@@ -1,6 +1,10 @@
 export { ToolRegistry } from "./registry.js";
 export { executeTool, createToolExecutor } from "./executor.js";
 
+// Sandbox
+export { buildSandboxContext, checkDockerAvailability } from "./sandbox/index.js";
+export type { SandboxContext } from "./sandbox/index.js";
+
 // Built-in tools
 export { finishTool } from "./built-in/finish.tool.js";
 export { createMemoryReadTool } from "./built-in/memory-read.tool.js";

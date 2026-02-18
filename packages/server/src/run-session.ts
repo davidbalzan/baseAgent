@@ -15,6 +15,7 @@ import {
   ToolRegistry,
   createToolExecutor,
   createGovernedExecutor,
+  buildSandboxContext,
   type GovernancePolicy,
   type ConfirmationDelegate,
   type GovernanceRateLimiter,
@@ -74,7 +75,14 @@ export async function runSession(
   });
 
   // 3. Build tool executor with governance wrapper
-  const rawExecutor = createToolExecutor((name) => registry.get(name));
+  const rawExecutor = createToolExecutor(
+    (name) => registry.get(name),
+    (toolName) => {
+      const tool = registry.get(toolName);
+      if (tool?.permission !== "exec") return undefined;
+      return buildSandboxContext(toolName, workspacePath, config);
+    },
+  );
   const defaultPolicy: GovernancePolicy = { read: "auto-allow", write: "confirm", exec: "confirm" };
   const executeTool = createGovernedExecutor(rawExecutor, {
     policy: deps.governancePolicy ?? defaultPolicy,

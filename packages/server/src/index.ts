@@ -35,6 +35,7 @@ import {
   createWebFetchTool,
   createWebSearchTool,
   loadSkills,
+  checkDockerAvailability,
   type GovernancePolicy,
   type ConfirmationDelegate,
 } from "@baseagent/tools";
@@ -124,6 +125,23 @@ async function main() {
     toolOverrides: config.governance?.toolOverrides,
   };
   console.log(`[governance] read=${governancePolicy.read} write=${governancePolicy.write} exec=${governancePolicy.exec}`);
+
+  // 6b-ii. Sandbox startup check
+  const sandboxLevel = config.sandbox?.defaultLevel ?? "loose";
+  console.log(`[sandbox] defaultLevel=${sandboxLevel}`);
+
+  const needsDocker =
+    sandboxLevel === "strict" ||
+    Object.values(config.sandbox?.toolOverrides ?? {}).includes("strict");
+
+  if (needsDocker) {
+    const docker = await checkDockerAvailability();
+    if (!docker.available) {
+      console.warn(`[sandbox] strict mode configured but Docker unavailable: ${docker.error}`);
+    } else {
+      console.log(`[sandbox] Docker available: ${docker.version}`);
+    }
+  }
 
   // 6c. Create rate limiters from config
   const channelLimiter = config.rateLimit?.channel
