@@ -37,7 +37,6 @@ docs/DECISIONS.md                   # Reset to template with example ADR only
 Template infrastructure (never touched):
 ```
 README.md                           # Project README
-VIBE_CODING_SEED.md                 # Core methodology
 TOOLS_PREFERENCE.md                 # Tool preferences
 docs/COMMANDS.md                    # Commands guide
 docs/phases/README.md               # Phase overview

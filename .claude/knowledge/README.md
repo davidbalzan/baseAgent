@@ -16,7 +16,6 @@ Domain-specific learnings accumulated from project experience. Reference these f
 | ai | [ai.md](ai.md) | AI integration patterns |
 | devops | [devops.md](devops.md) | Deployment and infrastructure |
 | process | [process.md](process.md) | Development workflow and methodology |
-| godot | [godot.md](godot.md) | Godot 4.5+ game engine patterns |
 
 ## Usage
 
@@ -29,4 +28,4 @@ These files are automatically updated via `/remember` command:
 
 ## Sync
 
-Knowledge is synced to [vibeSeed](https://github.com/davidbalzan/vibeSeed) for persistence across machines and new projects.
+Knowledge is synced to [baseAgent](https://github.com/davidbalzan/baseAgent) for persistence across machines and new projects.

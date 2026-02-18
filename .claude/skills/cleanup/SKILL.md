@@ -1,17 +1,17 @@
 ---
 name: cleanup
-description: Reset project to clean template state while preserving essential structure
+description: Reset project to baseAgent template state while preserving core infrastructure
 disable-model-invocation: true
 argument-hint: "[--dry-run] [--keep-decisions]"
 ---
 
 # Cleanup - Reset to Template State
 
-Reset the project to a clean template state, removing project-specific content while preserving the essential structure for reuse.
+Reset the project to a clean baseAgent template state, removing project-specific content while preserving the core agentic infrastructure for reuse.
 
 ## Instructions
 
-This skill removes transitional/project-specific files while keeping the template infrastructure intact.
+This skill removes domain-specific and project-specific files while keeping the baseAgent template infrastructure intact.
 
 ### What Gets REMOVED (Project-Specific)
 
@@ -19,17 +19,24 @@ These files contain project-specific content and will be deleted or reset:
 
 ```
 Files to DELETE:
-├── docs/PRD.md                      # Project requirements
-├── docs/PRD_*.md                    # Named PRD files
 ├── docs/TECH_STACK.md               # Technology choices
 ├── docs/ARCHITECTURE_GUIDE.md       # Architecture decisions
 ├── docs/DESIGN_SYSTEM.md            # Design tokens
 ├── docs/PRODUCTION_ROADMAP.md       # Project roadmap
 ├── docs/phases/phase*/PHASE*_TASKS.md  # Task breakdowns
+├── workspace/SOUL.md                # Agent persona
+├── workspace/USER.md                # User preferences
+├── workspace/MEMORY.md              # Interaction history
+├── workspace/HEARTBEAT.md           # Proactive tasks
+├── workspace/AGENTS.md              # Agent instructions
+├── workspace/TOOLS.md               # Tool overrides
+├── skills/*/                        # Domain-specific skills
+├── config/default.yaml              # Runtime config
 │
 Files to RESET (restore to template state):
 ├── CURRENT_FOCUS.md                 # Reset to placeholder
-└── docs/DECISIONS.md                # Reset to template with example ADR
+├── TOOLS_PREFERENCE.md              # Reset to defaults
+└── docs/DECISIONS.md                # Reset to template with base ADRs
 ```
 
 ### What Gets PRESERVED (Template Infrastructure)
@@ -39,25 +46,31 @@ These files are kept intact for rebuilding:
 ```
 ALWAYS PRESERVED:
 ├── README.md                        # Project README
-├── VIBE_CODING_SEED.md              # Core methodology
-├── TOOLS_PREFERENCE.md              # Tool preferences
+├── .cursorrules                     # Cursor AI rules
 │
 ├── docs/
+│   ├── PRD.md                       # Product requirements
 │   ├── COMMANDS.md                  # Commands guide
 │   ├── phases/
 │   │   ├── README.md                # Phase overview (preserved)
 │   │   ├── phase*/README.md         # Phase READMEs (preserved)
 │   │   └── templates/               # All templates preserved
-│   │       ├── README.md
-│   │       ├── TASK_TEMPLATE.md
-│   │       └── task_template_prompt.md
 │   └── templates/
 │       └── PRD_TEMPLATE.md          # PRD template preserved
 │
-├── .claude/skills/                  # All skills preserved
+├── packages/                        # Core agent packages (preserved)
+│   ├── core/
+│   ├── gateway/
+│   ├── memory/
+│   ├── tools/
+│   └── dashboard/
+│
+├── .claude/skills/                  # All workflow skills preserved
+├── .claude/knowledge/               # Knowledge base preserved
 ├── .cursor/commands/                # All commands preserved
 ├── .cursor/prompts/                 # All prompts preserved
-└── .vscode/prompts/                 # All prompts preserved
+├── .vscode/prompts/                 # All prompts preserved
+└── .github/copilot-instructions.md  # Copilot context preserved
 ```
 
 ## Process
@@ -70,20 +83,22 @@ First, show what would be deleted without making changes:
 ## Cleanup Preview
 
 ### Files to DELETE:
-- docs/PRD.md
-- docs/TECH_STACK.md
-- docs/ARCHITECTURE_GUIDE.md
-- docs/phases/phase2/PHASE2_TASKS.md
+- workspace/SOUL.md
+- workspace/HEARTBEAT.md
+- skills/my-domain-skill/
+- config/default.yaml
 - ...
 
 ### Files to RESET:
 - CURRENT_FOCUS.md → restore to template
-- docs/DECISIONS.md → keep only example ADR
+- docs/DECISIONS.md → keep base ADRs only
 
 ### Files PRESERVED:
-- docs/phases/phase1/README.md ✓
-- docs/phases/phase2/README.md ✓
+- packages/core/ ✓
+- packages/gateway/ ✓
+- docs/PRD.md ✓
 - docs/templates/PRD_TEMPLATE.md ✓
+- .claude/skills/ ✓
 - ...
 
 Proceed with cleanup? [y/N]
@@ -93,40 +108,40 @@ Proceed with cleanup? [y/N]
 
 After confirmation:
 
-1. **Delete project-specific files**
+1. **Delete project-specific files** (workspace/, skills/, config/)
 2. **Reset CURRENT_FOCUS.md** to template state:
    ```markdown
    # Current Focus
 
-   ## 🎯 Active Work
+   ## Active Work
 
    **Phase**: Not started
    **Task**: None
-   **Status**: ⏳ Ready to begin
+   **Status**: Ready to begin
 
-   ## 📍 Quick Context
+   ## Quick Context
 
    **What we're doing**: Project not yet initialized
    **Why**: -
    **Blocked by**: Nothing
-   **Next up**: Run `/kickstart` to initialize project
+   **Next up**: Run `/kickstart` to initialize a new agentic application
 
-   ## 🔗 Key Files
+   ## Key Files
 
-   - Methodology: `VIBE_CODING_SEED.md`
+   - PRD: `docs/PRD.md`
    - Commands: `docs/COMMANDS.md`
 
-   ## 📝 Session Notes
+   ## Session Notes
 
    _No active session_
 
-   ## 🕐 Last Updated
+   ## Last Updated
 
    **Date**: [Today's date]
-   **Status**: ⏳ Not Started
+   **Status**: Not Started
    ```
 
-3. **Reset docs/DECISIONS.md** - Keep structure and example ADR-001, remove project-specific ADRs
+3. **Reset docs/DECISIONS.md** - Keep structure and base template ADRs, remove project-specific ADRs
 
 ### Step 3: Summary
 
@@ -141,9 +156,10 @@ After confirmation:
 - docs/DECISIONS.md
 
 ### Preserved: Y files
-- Phase READMEs
+- All packages
 - All templates
 - All skills/commands
+- Knowledge base
 
 Ready to start fresh with `/kickstart`
 ```
@@ -153,12 +169,13 @@ Ready to start fresh with `/kickstart`
 - `--dry-run` - Preview changes without executing (default behavior)
 - `--keep-decisions` - Preserve all ADRs in DECISIONS.md
 - `--keep-phases` - Preserve phase task files (PHASE*_TASKS.md)
+- `--keep-workspace` - Preserve workspace memory files (SOUL.md, etc.)
 
 ## Safety Features
 
 1. **Always dry-run first** - Show preview before any deletion
 2. **Require confirmation** - Ask before executing
-3. **Preserve READMEs** - Phase structure stays intact
+3. **Preserve packages** - Core agent code is never touched
 4. **Preserve templates** - All templates are never touched
 5. **Git-aware** - Remind user to commit before cleanup if there are changes
 

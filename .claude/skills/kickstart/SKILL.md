@@ -1,119 +1,127 @@
 ---
 name: kickstart
-description: Initialize a new project with vibe coding documentation structure
+description: Initialize a new agentic application project from the baseAgent template
 disable-model-invocation: true
 argument-hint: "<project name>"
 ---
 
-# Kickstart - Project Initialization Wizard
+# Kickstart - Agentic Application Initializer
 
-Initialize a new project with the complete vibe coding documentation structure. This skill guides you through setting up all foundational documents for a well-organized, AI-friendly project.
+Initialize a new agentic application using baseAgent as the foundation. This skill guides you through forking the template, configuring the agent's identity, selecting channels, and setting up the project documentation.
+
+## Context
+
+**baseAgent** is a template for building agentic applications. When a user runs `/kickstart`, they want to create a **new project** based on this template — not modify baseAgent itself. The new project inherits baseAgent's architecture (ReAct loop, gateway, tools, memory) and adds domain-specific configuration.
 
 ## Instructions
 
-Follow this guided flow to set up a new project from scratch.
+Follow this guided flow to initialize a new agentic application.
 
-### Stage 1: Project Setup
+### Stage 1: Project Identity
 
-First, gather basic information:
+Gather basic information:
 
-1. **Project name** - What's the project called?
-2. **Project type** - Web app, API, CLI, library, mobile, etc.
-3. **Brief description** - One sentence about what it does
+1. **Project name** - What's the agent/app called?
+2. **Agent purpose** - One sentence: what does this agent do? (e.g., "Personal finance assistant", "DevOps monitoring bot")
+3. **Target users** - Who will interact with this agent?
 
-Then create the folder structure:
+Create or update the project folder structure:
 
 ```
-project-root/
+<project-name>/
 ├── docs/
 │   ├── phases/
-│   │   └── templates/
-│   └── templates/
-├── client/src/          # If frontend needed
-└── server/src/          # If backend needed
+│   │   └── templates/        # Inherited from baseAgent
+│   └── templates/            # Inherited from baseAgent
+├── packages/
+│   ├── core/                 # Agent loop (inherited)
+│   ├── gateway/              # Channel adapters (inherited)
+│   ├── memory/               # Memory system (inherited)
+│   ├── tools/                # Built-in tools (inherited)
+│   └── dashboard/            # Web UI (optional)
+├── skills/                   # Domain-specific agent skills
+├── workspace/                # Agent memory files
+│   ├── SOUL.md               # Agent personality & boundaries
+│   ├── USER.md               # User preferences
+│   └── HEARTBEAT.md          # Proactive task schedule
+├── config/
+│   └── default.yaml          # Runtime configuration
+└── CURRENT_FOCUS.md
 ```
 
-### Stage 2: Tech Stack Discovery
+### Stage 2: Agent Persona (SOUL.md)
 
-Ask about each layer (skip if not applicable):
+Ask about the agent's personality:
 
-**Frontend:**
-- Framework? (React, Vue, Svelte, etc.)
-- Build tool? (Vite, Next.js, etc.)
-- Styling? (Tailwind, CSS-in-JS, etc.)
-- State management? (Zustand, Redux, etc.)
+1. **Tone** - Formal, casual, friendly, professional, minimal?
+2. **Communication style** - Verbose or concise? Bullet points or paragraphs?
+3. **Language** - Default language for responses?
+4. **Boundaries** - What should the agent refuse to do?
+5. **Special behaviors** - Any quirks or personality traits?
 
-**Backend:**
-- Runtime? (Node.js, Deno, Bun, Python, Go, etc.)
-- Framework? (Hono, Express, FastAPI, etc.)
-- Database? (PostgreSQL, MySQL, MongoDB, etc.)
-- ORM? (Drizzle, Prisma, SQLAlchemy, etc.)
+Generate `workspace/SOUL.md` with the persona definition.
 
-**Infrastructure:**
-- Package manager? (pnpm, npm, yarn)
-- Monorepo? (Yes/No)
-- Deployment target? (Vercel, AWS, Docker, etc.)
+### Stage 3: Channel Configuration
 
-Generate `docs/TECH_STACK.md` with the collected information.
+Ask which messaging channels to enable:
 
-### Stage 3: Architecture Decisions
+- **Telegram** - Bot API token needed
+- **Discord** - Bot token + guild ID needed
+- **WhatsApp** - Baileys or Cloud API setup
+- **Slack** - Bolt app credentials needed
+- **Other** - Custom adapter planned?
 
-For each major technology choice, ask:
-1. **Why this choice?** - Rationale for the decision
-2. **What alternatives were considered?** - Other options evaluated
-3. **What are the trade-offs?** - Pros and cons
+For each selected channel, note required credentials (don't collect them — just document what's needed).
+
+Generate initial `config/default.yaml` with channel configuration placeholders.
+
+### Stage 4: Domain Skills & Tools
+
+Ask about the agent's specialization:
+
+1. **What tasks should it handle?** - List 3-5 core capabilities
+2. **External integrations?** - APIs, services, databases it needs to connect to
+3. **Proactive behaviors?** - What should it check on its own schedule?
 
 Generate:
-- `docs/ARCHITECTURE_GUIDE.md` - Overview and patterns
-- `docs/DECISIONS.md` - Initial ADRs for key choices
+- `workspace/HEARTBEAT.md` - Proactive task schedule based on answers
+- Skeleton skill folders in `skills/` for each domain capability
+- Update `TOOLS_PREFERENCE.md` with any new tool dependencies
 
-### Stage 4: Project Phases
+### Stage 5: Tech Stack Decisions
 
-Ask about the project scope:
-1. **What's the MVP?** - Minimum viable product scope
-2. **What comes after MVP?** - Future phases
-3. **Any hard deadlines?** - Timeline constraints
+Confirm or customize the inherited defaults:
 
-Suggest a phase structure based on project type:
+| Decision | Default | Ask User |
+|----------|---------|----------|
+| Language | TypeScript | Confirm or change |
+| Database | SQLite | Confirm or change |
+| LLM Provider | Claude (Anthropic) | Confirm or add fallbacks |
+| Package Manager | pnpm | Confirm or change |
+| Sandbox | Docker | Confirm or change |
 
-**Typical Web App Phases:**
+Generate:
+- `docs/TECH_STACK.md` - Technology choices and versions
+- `docs/DECISIONS.md` - ADRs for any deviations from baseAgent defaults
+
+### Stage 6: Project Phases
+
+Based on the agent's scope, suggest a phase structure:
+
+**Typical Agentic App Phases:**
 ```
-Phase 1: Foundation (Setup, Auth, Core UI)
-Phase 2: Core Features (Main functionality)
-Phase 3: Polish (UX, Performance, Testing)
-Phase 4: Launch (Deployment, Monitoring)
-```
-
-**Typical API Phases:**
-```
-Phase 1: Foundation (Setup, Database, Core Endpoints)
-Phase 2: Security (Auth, Rate Limiting, Validation)
-Phase 3: Features (Business Logic, Integrations)
-Phase 4: Production (Monitoring, Docs, Deployment)
+Phase 1: Foundation (Loop setup, SQLite, basic tools, first channel adapter)
+Phase 2: Core Skills (Domain-specific tools, memory integration)
+Phase 3: Multi-Channel (Additional adapters, message routing)
+Phase 4: Proactivity (Heartbeat, webhooks, background pollers)
+Phase 5: Polish (Dashboard, observability, governance)
 ```
 
 Generate:
 - `docs/PRODUCTION_ROADMAP.md` - High-level roadmap
 - `docs/phases/README.md` - Phase overview
 - `docs/phases/phase1/README.md` - First phase outline
-
-### Stage 5: Initialize Focus
-
-Set up the current focus document:
-- Point to Phase 1 as the starting point
-- Note any immediate next steps
-- Leave session notes empty for first session
-
-Generate `CURRENT_FOCUS.md` at project root.
-
-### Stage 6: Design System (Optional)
-
-If the project has a frontend, ask:
-1. **Color scheme?** - Primary, secondary, accent colors
-2. **Typography?** - Font family preferences
-3. **Component style?** - Minimal, modern, playful, corporate
-
-Generate `docs/DESIGN_SYSTEM.md` if applicable.
+- `CURRENT_FOCUS.md` - Set to Phase 1
 
 ### Stage 7: Summary & Next Steps
 
@@ -122,65 +130,55 @@ Provide a summary of everything created:
 ```markdown
 ## Project Initialized: [Project Name]
 
-### Files Created
+### Agent Identity
+- **Purpose**: [one-liner]
+- **Channels**: [list]
+- **Core Skills**: [list]
+
+### Files Created/Updated
+- workspace/SOUL.md
+- workspace/HEARTBEAT.md
+- config/default.yaml
 - docs/TECH_STACK.md
-- docs/ARCHITECTURE_GUIDE.md
-- docs/DECISIONS.md
 - docs/PRODUCTION_ROADMAP.md
-- docs/DESIGN_SYSTEM.md (if frontend)
+- docs/DECISIONS.md
 - docs/phases/README.md
 - docs/phases/phase1/README.md
-- docs/phases/templates/TASK_TEMPLATE.md
-- docs/phases/templates/task_template_prompt.md
-- docs/templates/PRD_TEMPLATE.md
 - CURRENT_FOCUS.md
+- skills/<domain>/schema.json (skeleton)
 
 ### Next Steps
 1. Run `/create-prd` to define detailed requirements
-2. Run `/plan-phase 1 [Phase Name]` to create detailed tasks
-3. Run `/start-session` to begin development
+2. Run `/plan-phase 1 Foundation` to create detailed tasks
+3. Add API credentials to `config/default.yaml`
+4. Run `/start-session` to begin development
 ```
-
-## Output Files
-
-| File | Purpose |
-|------|---------|
-| `docs/TECH_STACK.md` | Technology choices and versions |
-| `docs/ARCHITECTURE_GUIDE.md` | System design and patterns |
-| `docs/DECISIONS.md` | Architectural Decision Records |
-| `docs/PRODUCTION_ROADMAP.md` | High-level phase overview |
-| `docs/DESIGN_SYSTEM.md` | Visual design guidelines (optional) |
-| `docs/phases/README.md` | Phase navigation and progress |
-| `docs/phases/phase1/README.md` | First phase overview |
-| `docs/phases/templates/*` | Reusable planning templates |
-| `docs/templates/PRD_TEMPLATE.md` | PRD template |
-| `CURRENT_FOCUS.md` | Active work quick reference |
 
 ## Conversation Flow
 
 ```
-1. Greet and explain the kickstart process
-2. Stage 1: Gather project basics, create structure
-3. Stage 2: Tech stack discovery → TECH_STACK.md
-4. Stage 3: Architecture decisions → ARCHITECTURE_GUIDE.md, DECISIONS.md
-5. Stage 4: Define phases → PRODUCTION_ROADMAP.md, phases/
-6. Stage 5: Initialize focus → CURRENT_FOCUS.md
-7. Stage 6: Design system (if frontend) → DESIGN_SYSTEM.md
+1. Greet and explain: "Let's set up a new agentic app from baseAgent"
+2. Stage 1: Project identity → folder structure
+3. Stage 2: Agent persona → SOUL.md
+4. Stage 3: Channel selection → config/default.yaml
+5. Stage 4: Domain skills → HEARTBEAT.md, skill skeletons
+6. Stage 5: Tech stack confirmation → TECH_STACK.md, DECISIONS.md
+7. Stage 6: Define phases → PRODUCTION_ROADMAP.md, phases/
 8. Stage 7: Summary and next steps
 ```
 
 ## Tips
 
-- **Start lean**: You can always add more detail later
-- **Capture decisions early**: Future you will thank you
-- **Don't overthink phases**: They can be adjusted as you learn
-- **Link documents**: Cross-reference between docs for navigation
+- **Start with one channel** — get Telegram or Discord working before adding more
+- **Keep SOUL.md short** — the agent reads it every session, token-budget it
+- **Heartbeat is optional** — skip if the agent only needs to be reactive
+- **Don't over-skill** — start with 2-3 domain skills, add more as needed
 
 ## Related Skills
 
 After kickstart, use these in order:
 1. `/create-prd` - Define detailed product requirements
-2. `/plan-phase 1 [name]` - Create Phase 1 task breakdown
+2. `/plan-phase 1 Foundation` - Create Phase 1 task breakdown
 3. `/start-session` - Begin your first coding session
 4. `/log-decision` - Record decisions as you make them
 

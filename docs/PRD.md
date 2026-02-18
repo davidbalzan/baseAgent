@@ -2,7 +2,6 @@
 
 **Project:** baseAgent — Agentic Application Template
 **Repository:** [github.com/davidbalzan/baseAgent](https://github.com/davidbalzan/baseAgent)
-**Methodology:** [vibeSeed](https://github.com/davidbalzan/vibeSeed) (documentation-driven development)
 **Version:** 1.0 Draft
 **Date:** 2026-02-18
 **Author:** David Balzan
@@ -32,7 +31,7 @@
 
 **baseAgent** is a general-purpose, always-on personal-assistant template — a daemon that connects to multiple messaging platforms, runs a streaming ReAct-style agent loop, persists memory in editable Markdown files, and exposes an extensible tool system. It ships with no domain-specific logic; instead it provides the **bones** needed to feel like a capable AI companion out of the box.
 
-This project inherits the [vibeSeed](https://github.com/davidbalzan/vibeSeed) methodology for documentation-driven development, including AI workflow skills (`/start-session`, `/remember`, `/plan-phase`, etc.), phase-based planning, and persistent knowledge capture across projects.
+The project includes built-in AI workflow skills (`/start-session`, `/remember`, `/plan-phase`, etc.), phase-based planning, and persistent knowledge capture across projects.
 
 ### 1.2 Why Does This Exist?
 
@@ -43,7 +42,7 @@ Existing frameworks (LangGraph, Auto-GPT, CrewAI) optimize for batch pipelines o
 - **Heartbeat proactivity** — the agent wakes on a schedule and decides what to do.
 - **Resumability** — long tasks survive crashes and restarts.
 - **Streaming UX** — partial reasoning, tool progress, and final replies feel live.
-- **Built-in development methodology** — vibeSeed provides structured planning, ADRs, and cross-IDE AI commands from day one.
+- **Built-in development methodology** — structured planning, ADRs, and cross-IDE AI commands from day one.
 
 baseAgent combines these into a template that is immediately useful as a daily driver while being a solid base for any vertical specialization.
 
@@ -522,7 +521,7 @@ over verbose explanations. You use casual but professional language.
 
 ```
 baseAgent/
-├── .claude/                  # Claude Code skills & knowledge (from vibeSeed)
+├── .claude/                  # Claude Code skills & knowledge
 │   ├── skills/               # AI workflow skills (/start-session, /remember, etc.)
 │   └── knowledge/            # Persistent learnings across projects
 ├── .cursor/                  # Cursor AI commands & prompts
@@ -554,8 +553,7 @@ baseAgent/
 │   └── HEARTBEAT.md
 ├── config/
 │   └── default.yaml          # Runtime configuration
-├── CURRENT_FOCUS.md          # Active work context (vibeSeed pattern)
-├── VIBE_CODING_SEED.md       # Development methodology reference
+├── CURRENT_FOCUS.md          # Active work context
 ├── TOOLS_PREFERENCE.md       # Preferred libraries & tools
 ├── agent.db                  # SQLite database (generated at runtime)
 ├── package.json              # or pyproject.toml / Cargo.toml

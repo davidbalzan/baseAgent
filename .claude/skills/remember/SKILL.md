@@ -6,7 +6,7 @@ argument-hint: "[category:] <learning>"
 
 # Remember - Global Knowledge Capture
 
-Persist learnings to `~/.claude/knowledge/` and sync to vibeSeed repo.
+Persist learnings to `~/.claude/knowledge/` and sync to baseAgent repo.
 
 ## Usage
 
@@ -61,14 +61,14 @@ Persist learnings to `~/.claude/knowledge/` and sync to vibeSeed repo.
 4. **Update the index**
    - Ensure `~/.claude/knowledge/README.md` lists all categories
 
-5. **Sync to vibeSeed** (if configured)
-   - Copy knowledge directory to local vibeSeed clone
+5. **Sync to baseAgent** (if configured)
+   - Copy knowledge directory to local baseAgent clone
    - Commit and push changes
-   - VibeSeed path: `~/workspace/vibeSeed` (adjust if different)
+   - VibeSeed path: `~/workspace/baseAgent` (adjust if different)
 
 6. **Confirm to user**
    - Show what was saved and where
-   - Indicate if vibeSeed sync succeeded
+   - Indicate if baseAgent sync succeeded
 
 ## Knowledge File Format
 
@@ -102,14 +102,14 @@ Reference these files for domain-specific learnings.
 
 ## VibeSeed Sync
 
-After saving locally, sync to vibeSeed:
+After saving locally, sync to baseAgent:
 
 ```bash
-# Copy knowledge to vibeSeed
-cp -r ~/.claude/knowledge ~/workspace/vibeSeed/.claude/
+# Copy knowledge to baseAgent
+cp -r ~/.claude/knowledge ~/workspace/baseAgent/.claude/
 
 # Commit and push
-cd ~/workspace/vibeSeed
+cd ~/workspace/baseAgent
 git add .claude/knowledge
 git commit -m "knowledge: Update from $(hostname)"
 git push

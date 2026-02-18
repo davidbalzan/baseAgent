@@ -1,6 +1,6 @@
 # baseAgent
 
-> An agentic application template — streaming ReAct loop, multi-channel messaging gateway, extensible tools, and Markdown-based memory. Built with the [vibeSeed](https://github.com/davidbalzan/vibeSeed) methodology.
+> An agentic application template — streaming ReAct loop, multi-channel messaging gateway, extensible tools, and Markdown-based memory.
 
 ---
 
@@ -46,7 +46,6 @@ baseAgent/
 ├── config/
 │   └── default.yaml            # Runtime configuration
 ├── CURRENT_FOCUS.md            # Active work context
-├── VIBE_CODING_SEED.md         # Development methodology reference
 └── TOOLS_PREFERENCE.md         # Preferred libraries & tools
 ```
 
@@ -54,7 +53,7 @@ baseAgent/
 
 ## Development Methodology
 
-This project uses **Vibe Coding** — a documentation-driven approach for building software with AI assistance. See [VIBE_CODING_SEED.md](./VIBE_CODING_SEED.md) for the full methodology.
+This project uses a documentation-driven approach for building software with AI assistance.
 
 ### Key Documents
 
@@ -132,7 +131,7 @@ cd baseAgent
 
 ## Knowledge & Skills
 
-This project inherits the vibeSeed knowledge capture system:
+This project includes a knowledge capture system:
 
 ```
 ~/.claude/

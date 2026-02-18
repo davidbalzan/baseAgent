@@ -15,7 +15,7 @@
 
 ## Quick Context
 
-**What we're doing**: Setting up the baseAgent repository — merging vibeSeed methodology, writing the PRD, and establishing project identity before scaffolding code.
+**What we're doing**: Finalizing project identity, cleaning superfluous files, and preparing for technology decisions.
 
 **Why**: Foundation for the agentic application template. Need clear requirements and architecture decisions before writing any implementation code.
 
@@ -29,7 +29,7 @@
 
 - PRD: `docs/PRD.md`
 - Decisions: `docs/DECISIONS.md`
-- Methodology: `VIBE_CODING_SEED.md`
+- Commands: `docs/COMMANDS.md`
 
 ---
 
@@ -37,7 +37,7 @@
 
 _Add notes here during work sessions. Clear when starting new task._
 
-- [x] Merge vibeSeed workflow kit into baseAgent repo
+- [x] Merge workflow kit into baseAgent repo
 - [x] Create PRD from feature spec
 - [x] Reset repo identity (README, cursorrules, copilot instructions)
 - [ ] Finalize technology decisions (ADRs)

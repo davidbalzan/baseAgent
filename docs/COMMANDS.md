@@ -338,7 +338,6 @@ docs/templates/PRD_TEMPLATE.md       # PRD template
 .claude/skills/*                     # All skills
 .cursor/commands/*                   # All commands
 .vscode/prompts/*                    # All prompts
-VIBE_CODING_SEED.md                  # Core methodology
 ```
 
 **When to use**: When you want to reuse this template for a new project.
