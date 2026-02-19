@@ -29,6 +29,7 @@ import {
   ToolRegistry,
   finishTool,
   thinkTool,
+  createAddMcpServerTool,
   createMemoryReadTool,
   createMemoryWriteTool,
   createFileReadTool,
@@ -56,6 +57,7 @@ import {
 } from "@baseagent/gateway";
 
 import { healthRoute } from "./health.js";
+import { LiveSessionBus } from "./live-stream.js";
 import { runSession, type RunSessionDeps } from "./run-session.js";
 import { createHeartbeatScheduler, type HeartbeatScheduler } from "./heartbeat.js";
 import { createWebhookRoute } from "./webhook.js";
@@ -167,6 +169,9 @@ async function main() {
     }
   }
 
+  // 4d. Register add_mcp_server — wired to the live registry + handles
+  registry.register(createAddMcpServerTool({ registry, mcpHandles, configPath }));
+
   // 5. Memory files are loaded fresh per-session (hot-reload, MM-5).
   console.log(`[memory] Workspace: ${workspacePath} (files loaded fresh per session)`);
 
@@ -231,6 +236,9 @@ async function main() {
     }
   }
 
+  // 7a. Live session bus (UI-2) — must be created before sessionDeps
+  const liveSessionBus = new LiveSessionBus();
+
   // Shared deps for runSession
   const sessionDeps: RunSessionDeps = {
     model,
@@ -243,6 +251,7 @@ async function main() {
     governancePolicy,
     toolRateLimiter: toolLimiter,
     pricing: livePricing,
+    liveSessionBus,
   };
 
   // 7. Build Hono app
@@ -250,7 +259,7 @@ async function main() {
   app.route("/", healthRoute);
 
   // 7b. Dashboard API + static UI
-  const dashboardApi = createDashboardApi({ sessionRepo, traceRepo });
+  const dashboardApi = createDashboardApi({ sessionRepo, traceRepo, workspacePath, liveSessionBus });
   app.route("/", dashboardApi);
 
   const botName = parseBotName(workspacePath);

@@ -42,8 +42,8 @@ channels:
   #   appToken: ${SLACK_APP_TOKEN}
 
 agent:
-  maxIterations: 10
-  timeoutMs: 120000
+  maxIterations: 35
+  timeoutMs: 180000
   costCapUsd: 1.00
 
 memory:
@@ -99,7 +99,7 @@ mcp:
   servers:
     - name: chrome-devtools
       command: npx
-      args: ["-y", "chrome-devtools-mcp@latest"]
+      args: ["-y", "chrome-devtools-mcp@latest", "--no-usage-statistics"]
       permission: read
       # toolPermissions:
       #   evaluate_script: exec

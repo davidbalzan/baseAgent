@@ -8,6 +8,8 @@ export type { SandboxContext } from "./sandbox/index.js";
 // Built-in tools
 export { finishTool } from "./built-in/finish.tool.js";
 export { thinkTool } from "./built-in/think.tool.js";
+export { createAddMcpServerTool } from "./built-in/add-mcp-server.tool.js";
+export type { AddMcpServerContext } from "./built-in/add-mcp-server.tool.js";
 export { createMemoryReadTool } from "./built-in/memory-read.tool.js";
 export { createMemoryWriteTool } from "./built-in/memory-write.tool.js";
 export { createFileReadTool } from "./built-in/file-read.tool.js";
