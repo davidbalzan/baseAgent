@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ToolDefinition, ToolPermission, TraceEvent } from "@baseagent/core";
 import type { LoopEmitter } from "@baseagent/core";
+import { detectInjectionAttempt, sanitizeStringArg } from "@baseagent/core";
 
 export type ToolPolicy = "auto-allow" | "confirm" | "deny";
 
@@ -52,6 +53,19 @@ function truncateArgs(args: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
+/**
+ * Strip null bytes from all string arguments (GV-6).
+ * Null bytes have no legitimate use in tool args and can cause unexpected
+ * behaviour in child processes or file writes.
+ */
+function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    result[key] = typeof value === "string" ? sanitizeStringArg(value) : value;
+  }
+  return result;
+}
+
 function emitGovernanceTrace(
   emitter: LoopEmitter | undefined,
   sessionId: string | undefined,
@@ -80,7 +94,22 @@ export function createGovernedExecutor(
     const toolDef = getToolDefinition(name);
     const permission: ToolPermission = toolDef?.permission ?? "read";
     const effectivePolicy = policy.toolOverrides?.[name] ?? policy[permission];
-    const truncatedArgs = truncateArgs(args);
+
+    // GV-6: sanitize args (strip null bytes) before any further processing
+    const sanitized = sanitizeArgs(args);
+    const truncatedArgs = truncateArgs(sanitized);
+
+    // GV-6: detect prompt injection patterns in string args; emit trace event
+    // (informational — does not block execution)
+    const argStrings = Object.values(sanitized).filter((v): v is string => typeof v === "string");
+    if (argStrings.some(detectInjectionAttempt)) {
+      emitGovernanceTrace(emitter, sessionId, {
+        type: "injection_attempt",
+        toolName: name,
+        decision: "flagged",
+        args: truncatedArgs,
+      });
+    }
 
     if (effectivePolicy === "deny") {
       emitGovernanceTrace(emitter, sessionId, {
@@ -167,6 +196,6 @@ export function createGovernedExecutor(
       }
     }
 
-    return innerExecutor(name, args);
+    return innerExecutor(name, sanitized);
   };
 }

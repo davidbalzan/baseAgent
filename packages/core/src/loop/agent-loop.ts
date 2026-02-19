@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { streamText, type LanguageModel, type CoreMessage, type CoreTool } from "ai";
+import { streamText, jsonSchema, type LanguageModel, type CoreMessage, type CoreTool } from "ai";
 import type { ToolDefinition } from "../schemas/tool.schema.js";
 import type { TraceEvent } from "../schemas/trace.schema.js";
 import { LoopEmitter } from "./loop-events.js";
 import { createLoopState, updateUsage, type LoopState, type ModelPricing } from "./loop-state.js";
 import { compactMessages, persistCompactionSummary, decayToolOutputs, type ToolMessageMeta } from "./compaction.js";
+import { wrapUserInput } from "./injection-defense.js";
 
 export interface AgentLoopOptions {
   model: LanguageModel;
@@ -42,7 +43,7 @@ function toolsToSdkFormat(tools: Record<string, ToolDefinition>): Record<string,
   for (const [name, def] of Object.entries(tools)) {
     sdkTools[name] = {
       description: def.description,
-      parameters: def.parameters,
+      parameters: def.jsonSchema ? jsonSchema(def.jsonSchema) : def.parameters,
     };
   }
   return sdkTools;
@@ -118,8 +119,13 @@ export async function runAgentLoop(
     ? [...initialMessages]
     : [
         { role: "system", content: systemPrompt },
-        ...(conversationHistory ?? []),
-        { role: "user", content: input },
+        // Wrap prior conversation history user turns so they are also tagged
+        ...(conversationHistory ?? []).map((m) =>
+          m.role === "user" && typeof m.content === "string"
+            ? { ...m, content: wrapUserInput(m.content) }
+            : m,
+        ),
+        { role: "user", content: wrapUserInput(input) },
       ];
 
   const sdkTools = toolsToSdkFormat(tools);

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { writeFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ToolDefinition } from "@baseagent/core";
-import { resolveWorkspacePath } from "./_utils.js";
+import { resolveWorkspacePath, assertNotProtectedMemoryFile } from "./_utils.js";
 
 const parameters = z.object({
   path: z
@@ -28,6 +28,7 @@ export function createFileWriteTool(workspacePath: string): ToolDefinition<typeo
     timeoutMs: 5_000,
     execute: async (args) => {
       const filePath = resolveWorkspacePath(workspacePath, args.path);
+      assertNotProtectedMemoryFile(filePath);
 
       // Ensure parent directories exist
       mkdirSync(dirname(filePath), { recursive: true });

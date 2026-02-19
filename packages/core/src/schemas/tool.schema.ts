@@ -11,6 +11,10 @@ export interface ToolDefinition<TParams extends z.ZodTypeAny = z.ZodTypeAny> {
   timeoutMs?: number;
   maxOutputChars?: number;
   permission?: ToolPermission;
+  /** MCP tools only: raw JSON Schema from the MCP server.
+   *  When set, toolsToSdkFormat uses this for LLM presentation
+   *  and the executor bypasses Zod validation. */
+  jsonSchema?: Record<string, unknown>;
 }
 
 export const ToolCallSchema = z.object({

@@ -94,3 +94,12 @@ rateLimit:
 server:
   port: 3000
   host: 0.0.0.0
+
+mcp:
+  servers:
+    - name: chrome-devtools
+      command: npx
+      args: ["-y", "chrome-devtools-mcp@latest"]
+      permission: read
+      # toolPermissions:
+      #   evaluate_script: exec

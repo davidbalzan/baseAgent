@@ -23,12 +23,12 @@ import {
   TraceRepository,
   MessageRepository,
   deserializeMessages,
-  loadMemoryFiles,
   parseBotName,
 } from "@baseagent/memory";
 import {
   ToolRegistry,
   finishTool,
+  thinkTool,
   createMemoryReadTool,
   createMemoryWriteTool,
   createFileReadTool,
@@ -37,11 +37,13 @@ import {
   createFileListTool,
   createShellExecTool,
   createWebFetchTool,
-  createWebSearchTool,
   loadSkills,
+  loadMcpServers,
+  closeMcpServers,
   checkDockerAvailability,
   type GovernancePolicy,
   type ConfirmationDelegate,
+  type McpServerHandle,
 } from "@baseagent/tools";
 import {
   TelegramAdapter,
@@ -119,6 +121,7 @@ async function main() {
   const workspacePath = resolve(ROOT_DIR, "workspace");
   const registry = new ToolRegistry();
   registry.register(finishTool);
+  registry.register(thinkTool);
   registry.register(createMemoryReadTool(workspacePath));
   registry.register(createMemoryWriteTool(workspacePath));
   registry.register(createFileReadTool(workspacePath));
@@ -127,7 +130,6 @@ async function main() {
   registry.register(createFileListTool(workspacePath));
   registry.register(createShellExecTool(workspacePath));
   registry.register(createWebFetchTool());
-  registry.register(createWebSearchTool());
   console.log(`[tools] Built-in: ${registry.names().join(", ")}`);
 
   // 4b. Load skills from skills/ directory
@@ -145,9 +147,28 @@ async function main() {
     }
   }
 
-  // 5. Load memory files for system prompt
-  const systemPrompt = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget);
-  console.log(`[memory] System prompt loaded (${systemPrompt.length} chars)`);
+  // 4c. Load MCP servers
+  const mcpHandles: McpServerHandle[] = [];
+  if (config.mcp?.servers?.length) {
+    const mcpResult = await loadMcpServers(config.mcp.servers);
+    for (const handle of mcpResult.handles) {
+      for (const tool of handle.tools) {
+        registry.register(tool);
+      }
+      mcpHandles.push(handle);
+    }
+    if (mcpResult.loaded.length > 0) {
+      console.log(`[mcp] Connected: ${mcpResult.loaded.join(", ")}`);
+      const toolNames = mcpHandles.flatMap((h) => h.tools.map((t) => t.name));
+      console.log(`[mcp] Tools registered: ${toolNames.join(", ")}`);
+    }
+    for (const f of mcpResult.failed) {
+      console.warn(`[mcp] Failed "${f.name}": ${f.error}`);
+    }
+  }
+
+  // 5. Memory files are loaded fresh per-session (hot-reload, MM-5).
+  console.log(`[memory] Workspace: ${workspacePath} (files loaded fresh per session)`);
 
   // 6. Create repositories
   const sessionRepo = new SessionRepository(db);
@@ -213,7 +234,6 @@ async function main() {
   // Shared deps for runSession
   const sessionDeps: RunSessionDeps = {
     model,
-    systemPrompt,
     registry,
     config,
     workspacePath,
@@ -550,6 +570,7 @@ async function main() {
   const shutdown = async () => {
     console.log("[server] Shutting down...");
     heartbeat?.stop();
+    await closeMcpServers(mcpHandles);
     for (const adapter of adapters) {
       await adapter.stop();
     }

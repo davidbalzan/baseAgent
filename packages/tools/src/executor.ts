@@ -26,20 +26,25 @@ export async function executeTool(
   const start = Date.now();
 
   try {
-    // Validate args
-    const parsed = tool.parameters.safeParse(args);
-    if (!parsed.success) {
-      return {
-        result: "",
-        error: `Invalid arguments: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
-        durationMs: Date.now() - start,
-      };
+    // MCP tools carry a jsonSchema sentinel — skip Zod, args pass through raw.
+    // The MCP server validates internally when callTool() is invoked.
+    let parsedArgs: unknown = args;
+    if (tool.jsonSchema === undefined) {
+      const parsed = tool.parameters.safeParse(args);
+      if (!parsed.success) {
+        return {
+          result: "",
+          error: `Invalid arguments: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+          durationMs: Date.now() - start,
+        };
+      }
+      parsedArgs = parsed.data;
     }
 
     // Execute with timeout — route through sandbox if context provided
     const resultPromise = sandboxCtx
-      ? applySandbox(tool, parsed.data, sandboxCtx)
-      : tool.execute(parsed.data);
+      ? applySandbox(tool, parsedArgs as Record<string, unknown>, sandboxCtx)
+      : tool.execute(parsedArgs);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Tool "${tool.name}" timed out after ${timeoutMs}ms`)), timeoutMs),
     );

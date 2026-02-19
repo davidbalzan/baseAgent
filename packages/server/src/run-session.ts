@@ -1,6 +1,9 @@
+import { resolve } from "node:path";
 import {
   runAgentLoop,
   LoopEmitter,
+  INJECTION_DEFENSE_PREAMBLE,
+  detectSystemPromptLeakage,
   type AppConfig,
   type LoopState,
   type ToolMessageMeta,
@@ -13,6 +16,8 @@ import type {
   TraceRepository,
   MessageRepository,
 } from "@baseagent/memory";
+import { loadMemoryFiles } from "@baseagent/memory";
+import { exportSessionTrace } from "./trace-export.js";
 import {
   ToolRegistry,
   createToolExecutor,
@@ -50,7 +55,6 @@ export interface RunSessionInput {
 
 export interface RunSessionDeps {
   model: LanguageModel;
-  systemPrompt: string;
   registry: ToolRegistry;
   config: AppConfig;
   workspacePath: string;
@@ -75,7 +79,14 @@ export async function runSession(
   deps: RunSessionDeps,
   externalEmitter?: LoopEmitter,
 ): Promise<RunSessionResult> {
-  const { model, systemPrompt, registry, config, workspacePath, sessionRepo, traceRepo, messageRepo } = deps;
+  const { model, registry, config, workspacePath, sessionRepo, traceRepo, messageRepo } = deps;
+
+  // Hot-reload memory files on every session so edits to SOUL.md etc. take
+  // effect immediately without a server restart (MM-5).
+  // Prepend the injection defense preamble so the model treats <user_input>
+  // tagged content as untrusted (GV-6).
+  const memoryContent = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget);
+  const systemPrompt = `${INJECTION_DEFENSE_PREAMBLE}\n\n${memoryContent}`;
 
   // 1. Create or reuse session
   const sessionId = input.sessionId ?? sessionRepo.create({
@@ -154,6 +165,16 @@ export async function runSession(
     totalCostUsd: result.state.estimatedCostUsd,
     iterations: result.state.iteration,
   });
+
+  // 7. Export Markdown trace (OB-2) — non-fatal
+  const rootDir = resolve(workspacePath, "..");
+  exportSessionTrace(rootDir, sessionId, input.input, result.state, traceRepo);
+
+  // 8. Output leakage check (GV-6) — warn if the model appears to have
+  //    echoed back verbatim content from the system prompt.
+  if (detectSystemPromptLeakage(result.output, systemPrompt)) {
+    console.warn(`[security] Possible system prompt leakage detected in session ${sessionId}`);
+  }
 
   return { sessionId, output: result.output, state: result.state };
 }

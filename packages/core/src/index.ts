@@ -11,6 +11,8 @@ export type {
   SandboxLevel,
   SandboxConfig,
   WebhookConfig,
+  McpConfig,
+  McpServerConfig,
 } from "./schemas/config.schema.js";
 export type {
   Session,
@@ -47,3 +49,10 @@ export { runAgentLoop } from "./loop/agent-loop.js";
 export type { AgentLoopOptions, AgentLoopResult } from "./loop/agent-loop.js";
 export { compactMessages, persistCompactionSummary, decayToolOutputs } from "./loop/compaction.js";
 export type { ToolMessageMeta } from "./loop/compaction.js";
+export {
+  INJECTION_DEFENSE_PREAMBLE,
+  wrapUserInput,
+  detectInjectionAttempt,
+  detectSystemPromptLeakage,
+  sanitizeStringArg,
+} from "./loop/injection-defense.js";

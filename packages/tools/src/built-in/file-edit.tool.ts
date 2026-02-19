@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { ToolDefinition } from "@baseagent/core";
-import { resolveWorkspacePath } from "./_utils.js";
+import { resolveWorkspacePath, assertNotProtectedMemoryFile } from "./_utils.js";
 
 const parameters = z.object({
   path: z
@@ -29,6 +29,7 @@ export function createFileEditTool(workspacePath: string): ToolDefinition<typeof
     timeoutMs: 5_000,
     execute: async (args) => {
       const filePath = resolveWorkspacePath(workspacePath, args.path);
+      assertNotProtectedMemoryFile(filePath);
 
       // Read existing file — must exist
       let content: string;

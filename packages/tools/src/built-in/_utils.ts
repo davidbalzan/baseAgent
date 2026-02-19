@@ -1,4 +1,4 @@
-import { resolve, normalize, sep } from "node:path";
+import { resolve, normalize, sep, basename } from "node:path";
 import { realpathSync, lstatSync } from "node:fs";
 
 /**
@@ -40,6 +40,36 @@ export function resolveWorkspacePath(
   }
 
   return resolved;
+}
+
+/**
+ * Memory files managed exclusively through the `memory_write` tool.
+ * `file_write` and `file_edit` must not touch these — protecting them from
+ * accidental overwrite or deletion by the agent (MM-6).
+ *
+ * - MEMORY.md / USER.md       → append-only via memory_write
+ * - SOUL.md / PERSONALITY.md / HEARTBEAT.md → user-managed, agent read-only
+ */
+export const PROTECTED_MEMORY_FILES = new Set([
+  "SOUL.md",
+  "PERSONALITY.md",
+  "USER.md",
+  "MEMORY.md",
+  "HEARTBEAT.md",
+]);
+
+/**
+ * Throws if `resolvedPath` points to a protected memory file.
+ * Call this in any file tool that writes or edits content.
+ */
+export function assertNotProtectedMemoryFile(resolvedPath: string): void {
+  const name = basename(resolvedPath);
+  if (PROTECTED_MEMORY_FILES.has(name)) {
+    throw new Error(
+      `"${name}" is a protected memory file and cannot be modified via file tools. ` +
+      `Use memory_write to append new entries.`,
+    );
+  }
 }
 
 /** Env vars safe to pass through to child processes. */

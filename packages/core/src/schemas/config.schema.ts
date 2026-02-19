@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ToolPermissionSchema } from "./tool.schema.js";
 
 // Helper: accept string, null, or undefined — coerce null/empty to undefined
 const optionalString = z
@@ -122,6 +123,19 @@ const SandboxConfigSchema = z.object({
   allowNetwork: z.boolean().optional(),
 });
 
+const McpServerConfigSchema = z.object({
+  name: z.string(),
+  command: z.string(),
+  args: z.array(z.string()).default([]),
+  env: z.record(z.string(), z.string()).optional(),
+  permission: ToolPermissionSchema.default("read"),
+  toolPermissions: z.record(z.string(), ToolPermissionSchema).optional(),
+});
+
+const McpConfigSchema = z.object({
+  servers: z.array(McpServerConfigSchema).default([]),
+});
+
 export const AppConfigSchema = z.object({
   llm: LlmConfigSchema,
   channels: ChannelsConfigSchema.optional(),
@@ -133,6 +147,7 @@ export const AppConfigSchema = z.object({
   governance: GovernanceConfigSchema.optional(),
   rateLimit: RateLimitConfigSchema.optional(),
   sandbox: SandboxConfigSchema.optional(),
+  mcp: McpConfigSchema.optional(),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
@@ -140,3 +155,5 @@ export type LlmProvider = z.infer<typeof LlmProviderSchema>;
 export type SandboxLevel = z.infer<typeof SandboxLevelSchema>;
 export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;
 export type WebhookConfig = z.infer<typeof WebhookConfigSchema>;
+export type McpConfig = z.infer<typeof McpConfigSchema>;
+export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
