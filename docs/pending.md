@@ -32,10 +32,10 @@
 - [ ] **TS-9** Tool progress streaming — long-running tools emit partial updates during execution
 
 ### UI
-- [ ] **UI-2** Live session view — WebSocket stream of active agent reasoning in dashboard
-- [ ] **UI-3** Memory file editor — in-browser Markdown editor for workspace `.md` files
+- [x] **UI-2** Live session view — SSE stream at `/api/live`; `LiveSessionBus` in `live-stream.ts` forwards `trace_event`, `session_started`, `session_completed` to all connected dashboard clients; live trace events append in real-time to the open session detail
+- [x] **UI-3** Memory file editor — "Memory" tab in dashboard; `GET /api/memory` lists all 5 files, `PUT /api/memory/:file` saves edits; inline textarea editor per card
 - [ ] **UI-4** Heartbeat status dashboard — last run time, next scheduled run, result history
-- [ ] **UI-5** Mobile-responsive dashboard (media queries, Tailwind breakpoints)
+- [x] **UI-5** Mobile-responsive dashboard — stack layout on ≤700px, hamburger menu for tabs, slide-in session detail with back button, 3-col stats grid on mobile
 
 ---
 

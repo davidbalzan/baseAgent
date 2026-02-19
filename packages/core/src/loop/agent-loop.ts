@@ -130,6 +130,8 @@ export async function runAgentLoop(
 
   const sdkTools = toolsToSdkFormat(tools);
   let finalOutput = "";
+  let narrationNudges = 0;
+  const MAX_NARRATION_NUDGES = 2;
   const toolMessageMeta: ToolMessageMeta[] = initialToolMessageMeta
     ? [...initialToolMessageMeta]
     : [];
@@ -193,6 +195,21 @@ export async function runAgentLoop(
       const finishReason = await response.finishReason;
 
       if (finishReason !== "tool-calls" || toolCalls.length === 0) {
+        // Detect narration: model described plans but didn't call any tools.
+        // Nudge it to continue executing instead of ending the session.
+        const PLAN_PATTERN = /\b(I will|I'll|let me|I need to|I'm going to|I should|I can)\b/i;
+        if (PLAN_PATTERN.test(iterationText) && narrationNudges < MAX_NARRATION_NUDGES) {
+          narrationNudges++;
+          messages.push({
+            role: "user",
+            content: "Do not describe what you plan to do — call the tools now and return the final result.",
+          });
+          emitTrace(loopEmitter, sessionId, "narration_nudge", state.iteration, {
+            narrationText: iterationText,
+            nudgeCount: narrationNudges,
+          });
+          continue;
+        }
         finalOutput = iterationText;
         break;
       }

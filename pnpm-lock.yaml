@@ -15,6 +15,22 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@25.2.3)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/app:
+    dependencies:
+      '@baseagent/server':
+        specifier: workspace:*
+        version: link:../server
+      '@hono/node-server':
+        specifier: ^1.14.0
+        version: 1.19.9(hono@4.11.9)
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/core:
     dependencies:
       '@ai-sdk/anthropic':

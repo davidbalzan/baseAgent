@@ -53,7 +53,8 @@ baseAgent/
 │   ├── gateway/        # Channel adapters (Telegram, Discord, Slack), message queue
 │   ├── memory/         # SQLite persistence (Drizzle ORM), memory file loader
 │   ├── tools/          # Built-in tools, governance, executor, sandbox, skill loader
-│   └── server/         # Hono HTTP server, session runner, heartbeat, webhook, dashboard
+│   ├── server/         # Agent library: bootstrapAgent(), session runner, heartbeat, webhook, dashboard
+│   └── app/            # User entry point — add custom routes and integrations here
 ├── skills/             # User-installed tool extensions
 │   ├── echo/           # Test skill — echoes messages back
 │   ├── plan-phase/     # Reads phase-based task plans from docs/phases/
@@ -88,7 +89,7 @@ The streaming ReAct loop (`packages/core`) drives all agent behaviour:
 4. Repeat until the LLM calls `finish`, hits `maxIterations`, exceeds `costCapUsd`, or times out
 5. Persist the session and all trace events to SQLite
 
-**Safety rails:** every session is bounded by iteration count (default: 10), wall-clock timeout (default: 120s), and estimated cost cap (default: $1.00).
+**Safety rails:** every session is bounded by iteration count (default: 35), wall-clock timeout (default: 180s), and estimated cost cap (default: $1.00).
 
 ### Model Resolution & Fallback
 
@@ -170,6 +171,10 @@ All endpoints served by Hono on the configured port (default: 3000).
 | `GET` | `/api/sessions` | List recent sessions (up to 100) |
 | `GET` | `/api/sessions/:id` | Single session detail |
 | `GET` | `/api/sessions/:id/traces` | All trace events for a session |
+| `GET` | `/api/costs` | Aggregate cost analytics |
+| `GET` | `/api/live` | SSE stream of live session events |
+| `GET` | `/api/memory` | List workspace memory files with content |
+| `PUT` | `/api/memory/:file` | Update a workspace memory file |
 
 ---
 
@@ -303,7 +308,7 @@ cp .env.example .env
 # Build all packages
 pnpm build
 
-# Start the server (dev mode with hot reload)
+# Start the agent (dev mode with hot reload)
 pnpm dev
 
 # Run tests
@@ -312,12 +317,31 @@ pnpm test
 
 The server starts on `http://0.0.0.0:3000`. The trace dashboard is at `/dashboard`.
 
+User code lives in **`packages/app/src/index.ts`** — add custom routes, middleware, and integrations there. The agent infrastructure is bootstrapped automatically via `bootstrapAgent()`.
+
+---
+
+## Extending the Agent
+
+There are several clean extension points — no need to touch agent internals:
+
+| Where | What |
+|-------|------|
+| `packages/app/src/index.ts` | Custom Hono routes and middleware |
+| `skills/<name>/handler.ts` | New agent tools (auto-discovered at startup) |
+| `workspace/SOUL.md` | Agent identity and hard constraints (hot-reloaded) |
+| `workspace/HEARTBEAT.md` | Scheduled proactive tasks |
+| `config/default.yaml` | MCP servers, channels, governance, rate limits |
+
+See **[docs/CAPABILITIES.md](./docs/CAPABILITIES.md)** for a full reference covering every capability, API endpoint, and configuration field.
+
 ---
 
 ## Key Documents
 
 | Document | Purpose |
 |----------|---------|
+| [docs/CAPABILITIES.md](./docs/CAPABILITIES.md) | Full capability reference (API, tools, config) |
 | [docs/PRD.md](./docs/PRD.md) | Full product requirements and phasing |
 | [docs/DECISIONS.md](./docs/DECISIONS.md) | Architectural Decision Records |
 | [docs/COMMANDS.md](./docs/COMMANDS.md) | AI commands reference |

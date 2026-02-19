@@ -56,6 +56,7 @@ describe("createDashboardApi", () => {
   const app = createDashboardApi({
     sessionRepo: mockSessionRepo,
     traceRepo: mockTraceRepo,
+    workspacePath: "/tmp/test-workspace",
   });
 
   it("GET /api/sessions returns session list", async () => {
