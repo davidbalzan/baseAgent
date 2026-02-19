@@ -138,6 +138,15 @@ const McpConfigSchema = z.object({
   servers: z.array(McpServerConfigSchema).default([]),
 });
 
+const UserLinkSchema = z.object({
+  id: z.string(),
+  channels: z.array(z.string()),
+});
+
+const UsersConfigSchema = z.object({
+  links: z.array(UserLinkSchema).default([]),
+});
+
 export const AppConfigSchema = z.object({
   llm: LlmConfigSchema,
   channels: ChannelsConfigSchema.optional(),
@@ -150,6 +159,7 @@ export const AppConfigSchema = z.object({
   rateLimit: RateLimitConfigSchema.optional(),
   sandbox: SandboxConfigSchema.optional(),
   mcp: McpConfigSchema.optional(),
+  users: UsersConfigSchema.optional(),
 });
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
@@ -159,3 +169,4 @@ export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;
 export type WebhookConfig = z.infer<typeof WebhookConfigSchema>;
 export type McpConfig = z.infer<typeof McpConfigSchema>;
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
+export type UserLink = z.infer<typeof UserLinkSchema>;

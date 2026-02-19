@@ -13,6 +13,7 @@ export type {
   WebhookConfig,
   McpConfig,
   McpServerConfig,
+  UserLink,
 } from "./schemas/config.schema.js";
 export type {
   Session,

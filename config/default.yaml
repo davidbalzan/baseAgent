@@ -1,24 +1,12 @@
-# baseAgent Configuration
-# Environment variables are referenced as ${VAR_NAME}
-
 llm:
-  # Provider: "openrouter" | "anthropic" | "openai" | "ollama"
   provider: openrouter
   model: google/gemini-2.0-flash-001
   apiKey: ${OPENROUTER_API_KEY}
-  costPerMInputTokens: 0.10    # USD per 1M input tokens  (Gemini 2.0 Flash via OpenRouter)
-  costPerMOutputTokens: 0.40   # USD per 1M output tokens (Gemini 2.0 Flash via OpenRouter)
-  # conversationHistoryTokenBudget: 80000  # per-model override (Gemini has 1M context)
-
-  # Fallback chain: if primary model fails, try these in order
+  costPerMInputTokens: 0.1
+  costPerMOutputTokens: 0.4
   fallbackModels:
     - provider: openrouter
       model: z-ai/glm-5
-      # costPerMInputTokens: 0.00
-      # costPerMOutputTokens: 0.00
-      # conversationHistoryTokenBudget: 8000  # smaller context window
-
-  # Provider-specific overrides (used when provider is switched)
   providers:
     anthropic:
       apiKey: ${ANTHROPIC_API_KEY}
@@ -26,81 +14,61 @@ llm:
       apiKey: ${OPENAI_API_KEY}
     ollama:
       baseUrl: http://localhost:11434
-
 channels:
   telegram:
     enabled: true
     token: ${TELEGRAM_BOT_TOKEN}
     allowedUserIds:
       - "1975268993"
+      - "478902165"
   discord:
     enabled: true
     token: ${DISCORD_BOT_TOKEN}
-  # slack:
-  #   enabled: true
-  #   token: ${SLACK_BOT_TOKEN}
-  #   appToken: ${SLACK_APP_TOKEN}
-
 agent:
   maxIterations: 35
   timeoutMs: 180000
-  costCapUsd: 1.00
-
+  costCapUsd: 1
 memory:
-  compactionThreshold: 4000
+  compactionThreshold: 40000
   maxTokenBudget: 8000
-  toolOutputDecayIterations: 3
-  toolOutputDecayThresholdChars: 500
-  conversationHistoryTokenBudget: 40000  # default token budget for conversation history
-
+  toolOutputDecayIterations: 6
+  toolOutputDecayThresholdChars: 5000
+  conversationHistoryTokenBudget: 40000
 heartbeat:
   enabled: false
-  intervalMs: 1800000 # 30 min
-  # channelId: "telegram:12345"
-
-# webhook:
-#   enabled: true
-#   # secret: ${WEBHOOK_SECRET}
-#   # resultChannelId: "telegram:12345"
-
+  intervalMs: 1800000
 governance:
   read: auto-allow
   write: confirm
   exec: auto-allow
-  # toolOverrides:
-  #   memory_write: auto-allow
-  #   shell_exec: deny
-
+  toolOverrides:
+    add_mcp_server: auto-allow  # user explicitly triggers this; confirmation is redundant
 rateLimit:
   channel:
     maxRequests: 10
-    windowMs: 60000       # 10 messages/min per user
+    windowMs: 60000
   http:
     maxRequests: 20
-    windowMs: 60000       # 20 requests/min per IP
+    windowMs: 60000
   tool:
     maxRequests: 50
-    windowMs: 60000       # 50 tool calls/min per session
-
-# sandbox:
-#   defaultLevel: medium   # loose | medium | strict
-#   dockerImage: alpine:3.19
-#   maxMemoryMb: 256
-#   cpuCount: 0.5
-#   # allowNetwork: false
-#   # toolOverrides:
-#   #   shell_exec: strict
-
+    windowMs: 60000
 server:
   port: 3000
   host: 0.0.0.0
-
 mcp:
   servers:
     - name: chrome-devtools
       command: npx
-      args: ["-y", "chrome-devtools-mcp@latest", "--no-usage-statistics"]
+      args:
+        - -y
+        - chrome-devtools-mcp@latest
+        - --no-usage-statistics
       permission: read
       group: browser
-      # toolPermissions:
-      #   evaluate_script: exec
+    - name: context7
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp@latest"
+      permission: read

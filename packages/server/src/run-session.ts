@@ -16,7 +16,7 @@ import type {
   TraceRepository,
   MessageRepository,
 } from "@baseagent/memory";
-import { loadMemoryFiles } from "@baseagent/memory";
+import { loadMemoryFiles, resolveUserDir } from "@baseagent/memory";
 import { exportSessionTrace } from "./trace-export.js";
 import type { LiveSessionBus } from "./live-stream.js";
 import {
@@ -25,6 +25,8 @@ import {
   createGovernedExecutor,
   buildSandboxContext,
   selectTools,
+  createMemoryReadTool,
+  createMemoryWriteTool,
   type GovernancePolicy,
   type ConfirmationDelegate,
   type GovernanceRateLimiter,
@@ -85,11 +87,18 @@ export async function runSession(
 ): Promise<RunSessionResult> {
   const { model, registry, config, workspacePath, sessionRepo, traceRepo, messageRepo } = deps;
 
+  // Resolve per-user workspace directory for memory segregation.
+  // Shared files (SOUL.md, PERSONALITY.md, HEARTBEAT.md) load from workspace root.
+  // Per-user files (USER.md, MEMORY.md) load from workspace/users/<userId>/.
+  const userDir = input.channelId
+    ? resolveUserDir(workspacePath, input.channelId, config.users?.links)
+    : undefined;
+
   // Hot-reload memory files on every session so edits to SOUL.md etc. take
   // effect immediately without a server restart (MM-5).
   // Prepend the injection defense preamble so the model treats <user_input>
   // tagged content as untrusted (GV-6).
-  const memoryContent = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget);
+  const memoryContent = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget, userDir);
   const systemPrompt = `${INJECTION_DEFENSE_PREAMBLE}\n\n${memoryContent}`;
 
   // 1. Create or reuse session
@@ -148,6 +157,14 @@ export async function runSession(
     if (selectedCount < totalCount) {
       console.log(`[tools] Filtered ${selectedCount}/${totalCount} tools for session` +
         (activeGroups.length ? ` (groups: ${activeGroups.join(", ")})` : ""));
+    }
+
+    // Overlay per-user memory tools so USER.md/MEMORY.md are segregated per user.
+    if (userDir) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools.memory_read = createMemoryReadTool(workspacePath, userDir) as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools.memory_write = createMemoryWriteTool(workspacePath, userDir) as any;
     }
 
     result = await runAgentLoop(input.input, {

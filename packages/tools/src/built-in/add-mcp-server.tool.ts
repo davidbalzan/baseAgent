@@ -28,6 +28,14 @@ export function createAddMcpServerTool(ctx: AddMcpServerContext): ToolDefinition
     parameters,
     permission: "write",
     execute: async (args) => {
+      // Guard: if this server name is already connected, return immediately
+      // without spawning a second process (prevents double-calls within a session).
+      const alreadyConnected = ctx.mcpHandles.find((h) => h.name === args.name);
+      if (alreadyConnected) {
+        const toolNames = alreadyConnected.tools.map((t) => t.name).join(", ");
+        return `MCP server "${args.name}" is already connected. Tools available: ${toolNames}`;
+      }
+
       const serverConfig: McpServerConfig = {
         name: args.name,
         command: args.command,

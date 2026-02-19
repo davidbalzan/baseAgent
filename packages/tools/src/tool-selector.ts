@@ -12,6 +12,8 @@ const CONDITIONAL_GROUPS: Record<string, string[]> = {
     "screenshot", "click", "scroll", "tab", "chrome", "devtools",
     "search", "google", "news", "headline", "article",
     "visit", "open", "page", "link", "form", "type into",
+    "check", "look up", "find out", "what is", "what's", "current",
+    "today", "latest", "now", "live",
   ],
 };
 

@@ -5,14 +5,16 @@ interface MemoryFile {
   name: string;
   filename: string;
   priority: number;
+  /** If true, loaded from userDir when provided; otherwise from workspacePath. */
+  perUser: boolean;
 }
 
 const MEMORY_FILES: MemoryFile[] = [
-  { name: "Soul", filename: "SOUL.md", priority: 1 },
-  { name: "Personality", filename: "PERSONALITY.md", priority: 2 },
-  { name: "User", filename: "USER.md", priority: 3 },
-  { name: "Memory", filename: "MEMORY.md", priority: 4 },
-  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 5 },
+  { name: "Soul", filename: "SOUL.md", priority: 1, perUser: false },
+  { name: "Personality", filename: "PERSONALITY.md", priority: 2, perUser: false },
+  { name: "User", filename: "USER.md", priority: 3, perUser: true },
+  { name: "Memory", filename: "MEMORY.md", priority: 4, perUser: true },
+  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 5, perUser: false },
 ];
 
 function estimateTokens(text: string): number {
@@ -32,15 +34,24 @@ export function parseBotName(workspacePath: string): string {
   }
 }
 
+/**
+ * Load memory files into a combined string for the system prompt.
+ *
+ * Shared files (SOUL.md, PERSONALITY.md, HEARTBEAT.md) are loaded from workspacePath.
+ * Per-user files (USER.md, MEMORY.md) are loaded from userDir when provided,
+ * falling back to workspacePath for backward compatibility.
+ */
 export function loadMemoryFiles(
   workspacePath: string,
   maxTokenBudget: number,
+  userDir?: string,
 ): string {
   const sections: string[] = [];
   let tokenCount = 0;
 
   for (const file of MEMORY_FILES) {
-    const filePath = resolve(workspacePath, file.filename);
+    const baseDir = (file.perUser && userDir) ? userDir : workspacePath;
+    const filePath = resolve(baseDir, file.filename);
 
     if (!existsSync(filePath)) continue;
 

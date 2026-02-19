@@ -14,7 +14,13 @@ const parameters = z.object({
     .describe("The content to append to the file. Will be prefixed with a timestamp."),
 });
 
-export function createMemoryWriteTool(workspacePath: string): ToolDefinition<typeof parameters> {
+/**
+ * @param workspacePath - Shared workspace root (unused for writes, kept for compat).
+ * @param userDir - Per-user directory for USER.md and MEMORY.md. Falls back to workspacePath.
+ */
+export function createMemoryWriteTool(workspacePath: string, userDir?: string): ToolDefinition<typeof parameters> {
+  const writeDir = userDir ?? workspacePath;
+
   return {
     name: "memory_write",
     description:
@@ -22,7 +28,7 @@ export function createMemoryWriteTool(workspacePath: string): ToolDefinition<typ
     parameters,
     permission: "write",
     execute: async (args) => {
-      const filePath = resolve(workspacePath, args.filename);
+      const filePath = resolve(writeDir, args.filename);
       const timestamp = new Date().toISOString();
       const entry = `\n\n## ${timestamp}\n\n${args.content}`;
 
