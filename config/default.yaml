@@ -101,5 +101,6 @@ mcp:
       command: npx
       args: ["-y", "chrome-devtools-mcp@latest", "--no-usage-statistics"]
       permission: read
+      group: browser
       # toolPermissions:
       #   evaluate_script: exec

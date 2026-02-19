@@ -15,6 +15,9 @@ export interface ToolDefinition<TParams extends z.ZodTypeAny = z.ZodTypeAny> {
    *  When set, toolsToSdkFormat uses this for LLM presentation
    *  and the executor bypasses Zod validation. */
   jsonSchema?: Record<string, unknown>;
+  /** Capability group used for dynamic tool filtering (e.g. "browser", "filesystem").
+   *  Tools without a group are always included in every session. */
+  group?: string;
 }
 
 export const ToolCallSchema = z.object({

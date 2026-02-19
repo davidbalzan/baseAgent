@@ -38,6 +38,7 @@ export async function loadMcpServers(servers: McpServerConfig[]): Promise<LoadMc
           description: mcpTool.description ?? mcpTool.name,
           parameters: z.unknown() as unknown as z.ZodTypeAny, // stub — bypassed by executor guard
           jsonSchema: mcpTool.inputSchema as Record<string, unknown>,
+          group: serverConfig.group,
           permission,
           execute: async (args: unknown) => {
             const result = await client.callTool({

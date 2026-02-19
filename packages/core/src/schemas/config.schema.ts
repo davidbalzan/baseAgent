@@ -130,6 +130,8 @@ const McpServerConfigSchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
   permission: ToolPermissionSchema.default("read"),
   toolPermissions: z.record(z.string(), ToolPermissionSchema).optional(),
+  /** Capability group assigned to all tools from this server (e.g. "browser"). */
+  group: z.string().optional(),
 });
 
 const McpConfigSchema = z.object({

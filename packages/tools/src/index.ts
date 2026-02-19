@@ -27,6 +27,10 @@ export type { GovernancePolicy, ConfirmationDelegate, ToolPolicy, GovernanceOpti
 export { loadSkills } from "./skill-loader.js";
 export type { SkillContext, LoadSkillsResult } from "./skill-loader.js";
 
+// Tool selector
+export { selectTools } from "./tool-selector.js";
+export type { ToolSelectionResult } from "./tool-selector.js";
+
 // MCP loader
 export { loadMcpServers, closeMcpServers } from "./mcp-loader.js";
 export type { McpServerHandle, LoadMcpServersResult } from "./mcp-loader.js";

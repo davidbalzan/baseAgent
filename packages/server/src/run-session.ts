@@ -18,11 +18,13 @@ import type {
 } from "@baseagent/memory";
 import { loadMemoryFiles } from "@baseagent/memory";
 import { exportSessionTrace } from "./trace-export.js";
+import type { LiveSessionBus } from "./live-stream.js";
 import {
   ToolRegistry,
   createToolExecutor,
   createGovernedExecutor,
   buildSandboxContext,
+  selectTools,
   type GovernancePolicy,
   type ConfirmationDelegate,
   type GovernanceRateLimiter,
@@ -66,6 +68,8 @@ export interface RunSessionDeps {
   toolRateLimiter?: GovernanceRateLimiter;
   /** Live pricing fetched at startup (e.g. from OpenRouter API). Overrides config if set. */
   pricing?: ModelPricing;
+  /** Pub/sub bus for streaming live session events to the dashboard (UI-2). */
+  liveSessionBus?: LiveSessionBus;
 }
 
 export interface RunSessionResult {
@@ -95,11 +99,28 @@ export async function runSession(
     model: model.modelId,
   }).id;
 
-  // 2. Set up emitter with trace persistence
+  // 2. Set up emitter with trace persistence + live stream forwarding (UI-2)
   const emitter = externalEmitter ?? new LoopEmitter();
   emitter.on("trace", (event) => {
     traceRepo.insert(event);
   });
+
+  const bus = deps.liveSessionBus;
+  if (bus) {
+    bus.emit({ type: "session_started", sessionId, channelId: input.channelId, input: input.input, ts: new Date().toISOString() });
+    emitter.on("trace", (event) => {
+      bus.emit({
+        type: "trace_event",
+        sessionId,
+        phase: event.phase,
+        iteration: event.iteration,
+        data: event.data,
+        promptTokens: event.promptTokens,
+        completionTokens: event.completionTokens,
+        ts: event.timestamp,
+      });
+    });
+  }
 
   // 3. Build tool executor with governance wrapper
   const rawExecutor = createToolExecutor(
@@ -123,10 +144,16 @@ export async function runSession(
   // 4. Run agent loop
   let result;
   try {
+    const { tools, selectedCount, totalCount, activeGroups } = selectTools(input.input, registry.getAll());
+    if (selectedCount < totalCount) {
+      console.log(`[tools] Filtered ${selectedCount}/${totalCount} tools for session` +
+        (activeGroups.length ? ` (groups: ${activeGroups.join(", ")})` : ""));
+    }
+
     result = await runAgentLoop(input.input, {
       model,
       systemPrompt,
-      tools: registry.getAll(),
+      tools,
       executeTool,
       maxIterations: input.maxIterationsOverride ?? config.agent.maxIterations,
       timeoutMs: config.agent.timeoutMs,
@@ -165,6 +192,9 @@ export async function runSession(
     totalCostUsd: result.state.estimatedCostUsd,
     iterations: result.state.iteration,
   });
+
+  // 7a. Broadcast session completion to live-stream clients (UI-2)
+  bus?.emit({ type: "session_completed", sessionId, status: result.state.status, ts: new Date().toISOString() });
 
   // 7. Export Markdown trace (OB-2) — non-fatal
   const rootDir = resolve(workspacePath, "..");
