@@ -59,3 +59,21 @@ export {
   detectSystemPromptLeakage,
   sanitizeStringArg,
 } from "./loop/injection-defense.js";
+
+// Logger
+export { createLogger } from "./logger.js";
+export type { Logger } from "./logger.js";
+
+// Plugin system
+export type {
+  Plugin,
+  PluginContext,
+  PluginCapabilities,
+  PluginPhase,
+  PluginAfterInitContext,
+  DashboardTab,
+  ChannelAdapterLike,
+  HandleMessageFnLike,
+  IncomingMessageLike,
+  StreamCallbacksLike,
+} from "./plugin.js";

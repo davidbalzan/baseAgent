@@ -178,35 +178,19 @@ body::before {
   overflow: hidden;
 }
 
-/* Layout visibility per tab */
+/* Layout visibility — default-hidden approach for extensibility.
+   Traces tab uses sidebar + main-panel; all other tabs use full-width panels.
+   Plugin tabs only need:  .layout.tab-{id} .{id}-panel { display: flex; }  */
 .layout.tab-traces .sidebar { display: flex; }
 .layout.tab-traces .main-panel { display: flex; }
-.layout.tab-traces .live-panel,
-.layout.tab-traces .memory-panel,
-.layout.tab-traces .costs-panel { display: none; }
+.layout:not(.tab-traces) .sidebar { display: none; }
+.layout:not(.tab-traces) .main-panel { display: none; }
 
-.layout.tab-live .sidebar { display: none; }
-.layout.tab-live .main-panel { display: none; }
+/* Full-width panels: hidden by default, shown by their tab */
+.live-panel, .memory-panel, .costs-panel { display: none; grid-column: 1 / -1; }
 .layout.tab-live .live-panel { display: flex; }
-.layout.tab-live .memory-panel,
-.layout.tab-live .costs-panel { display: none; }
-
-.layout.tab-memory .sidebar { display: none; }
-.layout.tab-memory .main-panel { display: none; }
-.layout.tab-memory .live-panel { display: none; }
 .layout.tab-memory .memory-panel { display: flex; }
-.layout.tab-memory .costs-panel { display: none; }
-
-.layout.tab-costs .sidebar { display: none; }
-.layout.tab-costs .main-panel { display: none; }
-.layout.tab-costs .live-panel,
-.layout.tab-costs .memory-panel { display: none; }
 .layout.tab-costs .costs-panel { display: flex; }
-
-/* Full-width panels */
-.live-panel, .memory-panel, .costs-panel {
-  grid-column: 1 / -1;
-}
 
 /* ─── SIDEBAR ─── */
 .sidebar {
@@ -986,6 +970,8 @@ body::before {
 .top-table .link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .top-table .link:hover { text-decoration: underline; }
 
+/* __PLUGIN_CSS__ */
+
 /* ─── MOBILE ─── */
 @media (max-width: 700px) {
   :root { --sidebar-w: 100%; }
@@ -1055,6 +1041,7 @@ body::before {
     <button class="tab-btn" data-tab="live" onclick="switchTab('live')">Live</button>
     <button class="tab-btn" data-tab="memory" onclick="switchTab('memory')">Memory</button>
     <button class="tab-btn" data-tab="costs" onclick="switchTab('costs')">Costs</button>
+    <!-- __PLUGIN_TAB_BUTTONS__ -->
   </nav>
   <div class="topbar-right">
     <span class="live-dot" id="live-dot" title="Live stream disconnected"></span>
@@ -1119,6 +1106,8 @@ body::before {
   <section class="costs-panel" id="costs-panel">
     <div class="loading" style="height:200px"><div class="loading-spinner"></div></div>
   </section>
+
+  <!-- __PLUGIN_PANELS__ -->
 
 </div>
 
@@ -1781,6 +1770,9 @@ function goToSession(id) {
 // ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
+// Plugin tab activators — populated by injected plugin JS
+const _pluginTabActivated = {};
+
 function switchTab(tab) {
   currentTab = tab;
 
@@ -1792,10 +1784,16 @@ function switchTab(tab) {
   // Update layout class
   $layout.className = `layout tab-${tab}`;
 
-  // Lazy-load tab data
+  // Lazy-load built-in tab data
   if (tab === 'costs' && !costsData) loadCosts();
   if (tab === 'memory' && !memoryLoaded) loadMemory();
   if (tab === 'live') renderLiveFeed();
+
+  // Plugin tab lazy-load (one-shot activators)
+  if (_pluginTabActivated[tab] === false && typeof window['_pluginActivate_' + tab] === 'function') {
+    window['_pluginActivate_' + tab]();
+    _pluginTabActivated[tab] = true;
+  }
 
   // Close mobile menu
   document.getElementById('tab-nav').classList.remove('open');
@@ -1827,6 +1825,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === '2') switchTab('live');
   else if (e.key === '3') switchTab('memory');
   else if (e.key === '4') switchTab('costs');
+  // __PLUGIN_KEYBOARD_SHORTCUTS__
 });
 
 function navigateSession(dir) {
@@ -1897,6 +1896,8 @@ function stripPromptPrefix(input) {
   }
   return input;
 }
+
+// __PLUGIN_JS__
 
 // ──────────────────────────────────────────────
 // BOOT

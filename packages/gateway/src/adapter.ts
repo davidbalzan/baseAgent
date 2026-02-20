@@ -7,6 +7,7 @@ export interface IncomingMessage {
 
 export interface StreamCallbacks {
   onTextDelta: (delta: string) => void;
+  onTextReset?: () => void;
   onToolCall: (toolName: string) => void;
   onFinish: (output: string) => void;
   onError: (error: Error) => void;

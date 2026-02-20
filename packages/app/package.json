@@ -10,6 +10,12 @@
   },
   "dependencies": {
     "@baseagent/server": "workspace:*",
+    "@baseagent/plugin-telegram": "workspace:*",
+    "@baseagent/plugin-discord": "workspace:*",
+    "@baseagent/plugin-slack": "workspace:*",
+    "@baseagent/plugin-heartbeat": "workspace:*",
+    "@baseagent/plugin-webhook": "workspace:*",
+    "@baseagent/plugin-scheduler": "workspace:*",
     "@hono/node-server": "^1.14.0"
   },
   "devDependencies": {

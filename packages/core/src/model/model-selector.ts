@@ -2,12 +2,15 @@ import type { LanguageModel } from "ai";
 import type { ModelPricing } from "../loop/loop-state.js";
 
 const CAPABLE_KEYWORDS = [
+  // Development — tasks that benefit from the stronger model
   "code", "implement", "refactor", "debug", "fix", "bug",
   "write", "create", "build", "deploy", "test",
   "file", "edit", "script", "function", "class",
   "shell", "command", "run", "execute", "install",
   "api", "endpoint", "database", "query", "schema",
   "architecture", "design", "algorithm",
+  // Deep analysis — genuinely complex tasks
+  "analyze", "summarize", "scrape",
 ];
 
 export interface ModelOption {

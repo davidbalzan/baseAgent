@@ -1,3 +1,7 @@
+import { createLogger } from "@baseagent/core";
+
+const log = createLogger("proactive");
+
 export type SendProactiveMessageFn = (channelId: string, text: string) => Promise<void>;
 
 interface ProactiveAdapter {
@@ -22,7 +26,7 @@ export function createProactiveMessenger(
     const adapter = adapterMap.get(prefix);
 
     if (!adapter) {
-      console.warn(`[proactive] No adapter found for prefix "${prefix}" (channelId: ${channelId})`);
+      log.warn(`No adapter found for prefix "${prefix}" (channelId: ${channelId})`);
       return;
     }
 

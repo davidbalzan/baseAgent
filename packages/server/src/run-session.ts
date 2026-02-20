@@ -5,11 +5,13 @@ import {
   INJECTION_DEFENSE_PREAMBLE,
   detectSystemPromptLeakage,
   selectModel,
+  createLogger,
   type AppConfig,
   type LoopState,
   type ToolMessageMeta,
   type LanguageModel,
   type ModelPricing,
+  type ToolDefinition,
 } from "@baseagent/core";
 import type { CoreMessage } from "@baseagent/core";
 import type {
@@ -32,6 +34,11 @@ import {
   type ConfirmationDelegate,
   type GovernanceRateLimiter,
 } from "@baseagent/tools";
+import { createTaskStoreFromWorkspace, createScheduleTaskTool } from "@baseagent/plugin-scheduler";
+
+const modelLog = createLogger("model");
+const toolsLog = createLogger("tools");
+const securityLog = createLogger("security");
 
 /** Resolve pricing: live fetch takes precedence, then config, then loop defaults. */
 function resolvePricing(config: AppConfig, live?: ModelPricing): ModelPricing | undefined {
@@ -100,7 +107,7 @@ export async function runSession(
   });
   const model = selection.model;
   if (selection.routed) {
-    console.log(`[model] Routed to capable model (${model.modelId}) for this session`);
+    modelLog.log(`Routed to capable model (${model.modelId}) for this session`);
   }
 
   // Resolve per-user workspace directory for memory segregation.
@@ -116,7 +123,13 @@ export async function runSession(
   // tagged content as untrusted (GV-6).
   const memoryContent = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget, userDir);
   const now = new Date();
-  const dateStamp = `Current date: ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Current time: ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })}.`;
+  const isoNow = now.toISOString();
+  const tzOffsetMin = -now.getTimezoneOffset();
+  const tzSign = tzOffsetMin >= 0 ? "+" : "-";
+  const tzH = String(Math.floor(Math.abs(tzOffsetMin) / 60)).padStart(2, "0");
+  const tzM = String(Math.abs(tzOffsetMin) % 60).padStart(2, "0");
+  const tzLabel = `UTC${tzSign}${tzH}:${tzM}`;
+  const dateStamp = `Current date: ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Current time: ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })} (${tzLabel}). ISO timestamp: ${isoNow}.`;
   const systemPrompt = `${INJECTION_DEFENSE_PREAMBLE}\n\n${dateStamp}\n\n${memoryContent}`;
 
   // 1. Create or reuse session (record the actual routed model, not the default)
@@ -149,11 +162,41 @@ export async function runSession(
     });
   }
 
-  // 3. Build tool executor with governance wrapper
+  // 3. Select and overlay tools BEFORE building executor so the executor
+  //    resolves overlaid versions (schedule_task with channelId, per-user memory).
+  const { tools, selectedCount, totalCount, activeGroups } = selectTools(input.input, registry.getAll());
+  if (selectedCount < totalCount) {
+    toolsLog.log(`Filtered ${selectedCount}/${totalCount} tools for session` +
+      (activeGroups.length ? ` (groups: ${activeGroups.join(", ")})` : ""));
+  }
+
+  // Overlay per-user memory tools so USER.md/MEMORY.md are segregated per user.
+  if (userDir) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tools.memory_read = createMemoryReadTool(workspacePath, userDir) as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tools.memory_write = createMemoryWriteTool(workspacePath, userDir) as any;
+  }
+
+  // Overlay schedule_task with session-specific channelId so results
+  // are automatically delivered back to the user's channel.
+  if (input.channelId && tools.schedule_task) {
+    const store = createTaskStoreFromWorkspace(workspacePath);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tools.schedule_task = createScheduleTaskTool(store, input.channelId) as any;
+    toolsLog.log(`schedule_task overlay: channelId=${input.channelId}`);
+  } else if (input.channelId && !tools.schedule_task) {
+    toolsLog.warn(`schedule_task not found in tools — overlay skipped (channelId=${input.channelId})`);
+  }
+
+  // 4. Build tool executor with governance wrapper.
+  //    Resolve from the overlaid `tools` map first, falling back to the registry
+  //    for tools that weren't selected/overlaid (e.g. MCP tools).
+  const resolveTool = (name: string) => tools[name] as ToolDefinition | undefined ?? registry.get(name);
   const rawExecutor = createToolExecutor(
-    (name) => registry.get(name),
+    resolveTool,
     (toolName) => {
-      const tool = registry.get(toolName);
+      const tool = resolveTool(toolName);
       if (tool?.permission !== "exec") return undefined;
       return buildSandboxContext(toolName, workspacePath, config);
     },
@@ -161,30 +204,16 @@ export async function runSession(
   const defaultPolicy: GovernancePolicy = { read: "auto-allow", write: "confirm", exec: "confirm" };
   const executeTool = createGovernedExecutor(rawExecutor, {
     policy: deps.governancePolicy ?? defaultPolicy,
-    getToolDefinition: (name) => registry.get(name),
+    getToolDefinition: resolveTool,
     confirmationDelegate: deps.confirmationDelegate,
     emitter,
     sessionId,
     rateLimiter: deps.toolRateLimiter,
   });
 
-  // 4. Run agent loop
+  // 5. Run agent loop
   let result;
   try {
-    const { tools, selectedCount, totalCount, activeGroups } = selectTools(input.input, registry.getAll());
-    if (selectedCount < totalCount) {
-      console.log(`[tools] Filtered ${selectedCount}/${totalCount} tools for session` +
-        (activeGroups.length ? ` (groups: ${activeGroups.join(", ")})` : ""));
-    }
-
-    // Overlay per-user memory tools so USER.md/MEMORY.md are segregated per user.
-    if (userDir) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tools.memory_read = createMemoryReadTool(workspacePath, userDir) as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tools.memory_write = createMemoryWriteTool(workspacePath, userDir) as any;
-    }
-
     result = await runAgentLoop(input.input, {
       model,
       systemPrompt,
@@ -211,7 +240,7 @@ export async function runSession(
     throw err;
   }
 
-  // 5. Persist messages
+  // 6. Persist messages
   const iterationMap = new Map<number, number>();
   for (const meta of result.toolMessageMeta) {
     iterationMap.set(meta.messageIndex, meta.iteration);
@@ -238,7 +267,7 @@ export async function runSession(
   // 8. Output leakage check (GV-6) — warn if the model appears to have
   //    echoed back verbatim content from the system prompt.
   if (detectSystemPromptLeakage(result.output, systemPrompt)) {
-    console.warn(`[security] Possible system prompt leakage detected in session ${sessionId}`);
+    securityLog.warn(`Possible system prompt leakage detected in session ${sessionId}`);
   }
 
   return { sessionId, output: result.output, state: result.state };

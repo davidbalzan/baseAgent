@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { AppConfig } from "@baseagent/core";
+import { createLogger, type AppConfig } from "@baseagent/core";
 import type { SendProactiveMessageFn } from "@baseagent/gateway";
 import { runSession, type RunSessionDeps, type RunSessionResult } from "./run-session.js";
+
+const log = createLogger("heartbeat");
 
 export interface HeartbeatScheduler {
   start(): void;
@@ -73,12 +75,12 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
 
   async function tick(): Promise<void> {
     if (running) {
-      console.log("[heartbeat] Tick skipped — previous tick still running");
+      log.log("Tick skipped — previous tick still running");
       return;
     }
 
     running = true;
-    console.log("[heartbeat] Running tick...");
+    log.log("Running tick...");
 
     try {
       // Read HEARTBEAT.md fresh each tick
@@ -87,12 +89,12 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
       try {
         content = readFileSync(heartbeatPath, "utf-8");
       } catch {
-        console.log("[heartbeat] HEARTBEAT.md not found or unreadable — skipping");
+        log.log("HEARTBEAT.md not found or unreadable — skipping");
         return;
       }
 
       if (!content.trim()) {
-        console.log("[heartbeat] HEARTBEAT.md is empty — skipping");
+        log.log("HEARTBEAT.md is empty — skipping");
         return;
       }
 
@@ -104,19 +106,19 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
       );
 
       const output = result.output;
-      console.log(`[heartbeat] Tick complete — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
+      log.log(`Tick complete — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
 
       // Send to channel if configured and output is actionable
       if (channelId && sendProactiveMessage && !isNoActionOutput(output)) {
         try {
           await sendProactiveMessage(channelId, output);
-          console.log(`[heartbeat] Sent result to ${channelId}`);
+          log.log(`Sent result to ${channelId}`);
         } catch (err) {
-          console.error("[heartbeat] Failed to send proactive message:", err);
+          log.error(`Failed to send proactive message: ${err}`);
         }
       }
     } catch (err) {
-      console.error("[heartbeat] Tick failed:", err);
+      log.error(`Tick failed: ${err}`);
     } finally {
       running = false;
     }
@@ -124,7 +126,7 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
 
   return {
     start() {
-      console.log(`[heartbeat] Starting scheduler (interval: ${intervalMs}ms)`);
+      log.log(`Starting scheduler (interval: ${intervalMs}ms)`);
       // Run first tick immediately
       tick();
       timer = setInterval(tick, intervalMs);
@@ -134,7 +136,7 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
         clearInterval(timer);
         timer = null;
       }
-      console.log("[heartbeat] Scheduler stopped");
+      log.log("Scheduler stopped");
     },
     tick,
   };

@@ -17,6 +17,24 @@ importers:
 
   packages/app:
     dependencies:
+      '@baseagent/plugin-discord':
+        specifier: workspace:*
+        version: link:../plugin-discord
+      '@baseagent/plugin-heartbeat':
+        specifier: workspace:*
+        version: link:../plugin-heartbeat
+      '@baseagent/plugin-scheduler':
+        specifier: workspace:*
+        version: link:../plugin-scheduler
+      '@baseagent/plugin-slack':
+        specifier: workspace:*
+        version: link:../plugin-slack
+      '@baseagent/plugin-telegram':
+        specifier: workspace:*
+        version: link:../plugin-telegram
+      '@baseagent/plugin-webhook':
+        specifier: workspace:*
+        version: link:../plugin-webhook
       '@baseagent/server':
         specifier: workspace:*
         version: link:../server
@@ -61,15 +79,6 @@ importers:
       '@baseagent/core':
         specifier: workspace:*
         version: link:../core
-      '@slack/bolt':
-        specifier: ^4.6.0
-        version: 4.6.0(@types/express@5.0.6)
-      discord.js:
-        specifier: ^14.16.0
-        version: 14.25.1
-      telegraf:
-        specifier: ^4.16.0
-        version: 4.16.3
     devDependencies:
       typescript:
         specifier: ^5.7.0
@@ -94,6 +103,90 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/plugin-discord:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baseagent/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+      discord.js:
+        specifier: ^14.16.0
+        version: 14.25.1
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/plugin-heartbeat:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/plugin-scheduler:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+      hono:
+        specifier: ^4.7.0
+        version: 4.11.9
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/plugin-slack:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baseagent/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+      '@slack/bolt':
+        specifier: ^4.6.0
+        version: 4.6.0(@types/express@5.0.6)
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/plugin-telegram:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@baseagent/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+      telegraf:
+        specifier: ^4.16.0
+        version: 4.16.3
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/plugin-webhook:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/server:
     dependencies:
       '@baseagent/core':
@@ -105,6 +198,24 @@ importers:
       '@baseagent/memory':
         specifier: workspace:*
         version: link:../memory
+      '@baseagent/plugin-discord':
+        specifier: workspace:*
+        version: link:../plugin-discord
+      '@baseagent/plugin-heartbeat':
+        specifier: workspace:*
+        version: link:../plugin-heartbeat
+      '@baseagent/plugin-scheduler':
+        specifier: workspace:*
+        version: link:../plugin-scheduler
+      '@baseagent/plugin-slack':
+        specifier: workspace:*
+        version: link:../plugin-slack
+      '@baseagent/plugin-telegram':
+        specifier: workspace:*
+        version: link:../plugin-telegram
+      '@baseagent/plugin-webhook':
+        specifier: workspace:*
+        version: link:../plugin-webhook
       '@baseagent/tools':
         specifier: workspace:*
         version: link:../tools

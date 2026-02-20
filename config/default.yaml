@@ -29,7 +29,7 @@ channels:
       - "1975268993"
       - "478902165"
   discord:
-    enabled: true
+    enabled: false
     token: ${DISCORD_BOT_TOKEN}
 agent:
   maxIterations: 35

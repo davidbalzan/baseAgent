@@ -11,10 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@baseagent/core": "workspace:*",
-    "@slack/bolt": "^4.6.0",
-    "discord.js": "^14.16.0",
-    "telegraf": "^4.16.0"
+    "@baseagent/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

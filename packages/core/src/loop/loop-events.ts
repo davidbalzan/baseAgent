@@ -15,6 +15,7 @@ export interface SessionCompletePayload {
 
 export interface LoopEventMap {
   text_delta: [delta: string];
+  text_reset: [];
   tool_call: [call: ToolCall];
   tool_result: [result: ToolResult];
   trace: [event: TraceEvent];

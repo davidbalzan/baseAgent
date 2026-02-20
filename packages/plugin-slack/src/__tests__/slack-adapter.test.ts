@@ -25,7 +25,7 @@ vi.mock("@slack/bolt", () => ({
 }));
 
 import { SlackAdapter } from "../slack/slack-adapter.js";
-import type { HandleMessageFn } from "../adapter.js";
+import type { HandleMessageFn } from "@baseagent/gateway";
 
 describe("SlackAdapter", () => {
   let adapter: SlackAdapter;
@@ -108,6 +108,30 @@ describe("SlackAdapter", () => {
       const result = await adapter.requestConfirmation("invalid", "Approve?");
 
       expect(result).toEqual({ approved: false, reason: "Invalid channel ID" });
+    });
+  });
+
+  describe("confirmation before rate limiting (bug fix)", () => {
+    it("checks confirmations before allowlist/rate-limit", async () => {
+      // Create adapter with restrictive allowlist (no users allowed)
+      const restrictedAdapter = new SlackAdapter("xoxb-test", "xapp-test", handleMessage, ["allowed-user-only"]);
+
+      // Start a confirmation request
+      const confirmPromise = restrictedAdapter.requestConfirmation("slack:C012ABCDEF", "Approve?");
+
+      await vi.waitFor(() => {
+        expect(mockPostMessage).toHaveBeenCalled();
+      });
+
+      // Simulate a "yes" reply from a non-allowlisted user via the message handler
+      // This should still resolve the confirmation (not be blocked by allowlist)
+      await messageHandler({
+        message: { channel: "C012ABCDEF", user: "non-allowed-user", text: "yes", ts: "111" },
+        client: { chat: { postMessage: mockPostMessage, update: mockChatUpdate } },
+      });
+
+      const result = await confirmPromise;
+      expect(result).toEqual({ approved: true, reason: undefined });
     });
   });
 

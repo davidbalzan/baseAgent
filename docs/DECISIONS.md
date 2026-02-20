@@ -17,6 +17,7 @@ ADRs capture context that's easy to forget: why we chose X over Y, what constrai
 | ADR-005 | [Vercel AI SDK v6 for LLM Abstraction](#adr-005-vercel-ai-sdk-v6-for-llm-abstraction) | Accepted | 2026-02-18 |
 | ADR-006 | [Hono for HTTP Layer](#adr-006-hono-for-http-layer) | Accepted | 2026-02-18 |
 | ADR-007 | [Zod for All Validation and Schemas](#adr-007-zod-for-all-validation-and-schemas) | Accepted | 2026-02-18 |
+| ADR-008 | [Plugin Dashboard Extension System](#adr-008-plugin-dashboard-extension-system) | Accepted | 2026-02-20 |
 
 ---
 
@@ -402,6 +403,65 @@ type ToolResult = z.infer<typeof ToolResultSchema>;
 | Yup | Similar to Joi | Weaker TS inference, less active | Zod has better ecosystem fit (AI SDK, Hono) |
 | ArkType | Faster validation | Less mature, smaller ecosystem | Too new; Zod is the ecosystem standard for our stack |
 | io-ts | Strong FP approach | Steep learning curve, verbose | Over-engineered for our needs |
+
+---
+
+## ADR-008: Plugin Dashboard Extension System
+
+**Status**: Accepted
+**Date**: 2026-02-20
+**Deciders**: David Balzan
+
+### Context
+
+The dashboard at `GET /dashboard` is a single-page HTML app serving built-in tabs (Traces, Live, Memory, Costs). The scheduler plugin (`@baseagent/plugin-scheduler`) needed a "Tasks" tab to display scheduled tasks, but hardcoding it in the dashboard HTML created a coupling problem: the Tasks tab was always visible even when the scheduler plugin wasn't loaded, and other plugins had no way to contribute their own UI.
+
+### Decision
+
+Add a **`DashboardTab`** type to `@baseagent/core` and a `dashboardTabs` field to `PluginCapabilities`, enabling any plugin to register dashboard tabs at init time. The server injects plugin tabs into the dashboard HTML at serve-time via template placeholders.
+
+**How it works:**
+
+1. Plugin returns `dashboardTabs: DashboardTab[]` from `init()` — each tab declares its `id`, `label`, `panelHtml`, optional `css`, `js`, and `onActivate` expression
+2. The plugin loader collects all tabs into `PluginLoadResult.dashboardTabs`
+3. At server startup, `injectPluginTabs()` replaces five placeholders in the dashboard HTML template:
+   - `<!-- __PLUGIN_TAB_BUTTONS__ -->` — nav buttons
+   - `<!-- __PLUGIN_PANELS__ -->` — panel HTML
+   - `/* __PLUGIN_CSS__ */` — scoped styles + show/hide rules
+   - `// __PLUGIN_JS__` — state and functions
+   - `// __PLUGIN_KEYBOARD_SHORTCUTS__` — keyboard shortcuts (keys 5-9)
+4. Plugin panels are hidden by default; auto-generated CSS rules (`.layout.tab-{id} .{id}-panel { display: flex }`) handle tab switching
+5. Lazy loading via `onActivate` — the expression runs once on first tab activation
+
+**Convention:** Plugin `panelHtml` root element must use the CSS class `{id}-panel` (e.g. `tasks-panel`) for the auto-generated show/hide rules to work.
+
+**Plugin routes:** Plugins can also provide their own API endpoints via `routes` (a Hono sub-app) and `routePrefix`. The scheduler plugin serves `GET /scheduler/tasks` for its dashboard tab's data needs.
+
+### Consequences
+
+**Positive:**
+- Dashboard is fully decoupled from plugins — no Tasks tab when scheduler isn't loaded
+- Any plugin can contribute dashboard UI with zero changes to the server
+- Plugin tabs are self-contained (HTML + CSS + JS in one `DashboardTab` object)
+- No build tooling required — raw HTML/CSS/JS strings, no bundler
+- Keyboard shortcuts auto-assigned (keys 5-9) for plugin tabs
+
+**Negative:**
+- Plugin UI is limited to what can be expressed as raw HTML/CSS/JS strings (no component framework)
+- Maximum 5 plugin tabs with keyboard shortcuts (keys 5-9); additional tabs work but lack shortcuts
+- No client-side isolation between plugin scripts (shared global scope)
+
+**Risks:**
+- Plugin JS name collisions — mitigated by convention (prefix globals with plugin name)
+- Large plugin CSS/JS may slow initial page load — mitigated by lazy `onActivate` loading
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| Conditional hardcoded tab | Simple — one `if` check per tab | Every new plugin requires dashboard changes; hardcoded coupling | Doesn't scale; violates plugin independence |
+| Separate plugin page at `/scheduler` | Full isolation, no injection needed | Loses dashboard integration (tabs, nav, shared styles) | Fragmented UX; users want a single dashboard |
+| iframe-based plugin panels | Full script isolation per plugin | Complex communication, inconsistent styling, performance | Over-engineered; current plugins are trusted |
 
 ---
 

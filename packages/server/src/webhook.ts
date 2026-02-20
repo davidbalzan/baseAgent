@@ -1,8 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
-import type { AppConfig } from "@baseagent/core";
+import { createLogger, type AppConfig } from "@baseagent/core";
 import type { SendProactiveMessageFn } from "@baseagent/gateway";
 import { runSession, type RunSessionDeps, type RunSessionResult } from "./run-session.js";
+
+const log = createLogger("webhook");
 
 export type RunSessionFn = (
   input: { input: string; channelId?: string },
@@ -129,15 +131,15 @@ export function createWebhookRoute(deps: WebhookDeps) {
       );
 
       const output = result.output;
-      console.log(`[webhook] Event "${event}" processed — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
+      log.log(`Event "${event}" processed — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
 
       // Send to channel if configured and output is actionable
       if (resultChannelId && sendProactiveMessage && !isNoActionWebhookOutput(output)) {
         try {
           await sendProactiveMessage(resultChannelId, output);
-          console.log(`[webhook] Sent result to ${resultChannelId}`);
+          log.log(`Sent result to ${resultChannelId}`);
         } catch (err) {
-          console.error("[webhook] Failed to send proactive message:", err);
+          log.error(`Failed to send proactive message: ${err}`);
         }
       }
 
@@ -156,7 +158,7 @@ export function createWebhookRoute(deps: WebhookDeps) {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Internal server error";
-      console.error(`[webhook] Event "${event}" failed:`, err);
+      log.error(`Event "${event}" failed: ${err}`);
       return c.json({ error: message }, 500);
     }
   }

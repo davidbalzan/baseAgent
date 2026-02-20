@@ -1,0 +1,21 @@
+{
+  "name": "@baseagent/plugin-discord",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@baseagent/core": "workspace:*",
+    "@baseagent/gateway": "workspace:*",
+    "discord.js": "^14.16.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

@@ -574,6 +574,32 @@ Overwrite a memory file. Only the five known filenames are accepted (no path tra
 
 **Error responses**: `403` unknown/disallowed file, `400` missing content, `500` write error.
 
+### Plugin Routes
+
+Plugins can provide their own HTTP endpoints via `routes` (a Hono sub-app) and `routePrefix`. These are mounted on the main server automatically during bootstrap.
+
+#### `GET /scheduler/tasks` (plugin-scheduler)
+
+Returns all scheduled tasks sorted by creation date (newest first).
+
+**Response:**
+```json
+{
+  "tasks": [
+    {
+      "id": "a1b2c3d4-...",
+      "task": "Check API health and report",
+      "executeAt": "2026-02-20T15:00:00.000Z",
+      "channelId": "telegram:12345",
+      "createdAt": "2026-02-20T10:30:00.000Z",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+**Task status values:** `pending`, `running`, `completed`, `failed`
+
 ### Webhook
 
 #### `POST /webhook/:event`
@@ -878,6 +904,29 @@ The built-in single-page web UI at `GET /dashboard` provides:
 - Deep-link support via URL hash (`#ses_abc123`)
 - Keyboard navigation: `j`/`k` or arrow keys to move, `/` to search
 
+### Plugin Tabs
+
+Plugins can contribute dashboard tabs via the `DashboardTab` type on `PluginCapabilities`. Plugin tabs appear in the nav bar after the built-in tabs and are only visible when the contributing plugin is loaded.
+
+Each tab declares:
+
+| Field | Type | Required | Description |
+|-------|------|:--------:|-------------|
+| `id` | string | Yes | Unique key used in CSS class names and tab switching |
+| `label` | string | Yes | Display label in the nav bar |
+| `panelHtml` | string | Yes | HTML markup — root element **must** use class `{id}-panel` |
+| `css` | string | No | Additional CSS rules |
+| `js` | string | No | JS code (function definitions, state) |
+| `onActivate` | string | No | JS expression called once on first tab activation |
+
+Keyboard shortcuts `5`–`9` are auto-assigned to plugin tabs in registration order.
+
+Currently registered plugin tabs:
+
+| Plugin | Tab ID | Label | Data Endpoint |
+|--------|--------|-------|---------------|
+| `@baseagent/plugin-scheduler` | `tasks` | Tasks | `GET /scheduler/tasks` |
+
 ### Live SSE Stream
 
 `GET /api/live` provides a real-time SSE feed of all session events. The dashboard uses this to update without polling. Third-party tools can subscribe to it for custom monitoring.
@@ -992,6 +1041,7 @@ Each of `channel`, `http`, and `tool` accepts:
 
 | Location | What to put there |
 |----------|-------------------|
+| `packages/plugin-*/` | Plugins — tools, adapters, routes, dashboard tabs |
 | `packages/app/src/index.ts` | Custom Hono routes, middleware, startup logic |
 | `skills/<name>/handler.ts` | Custom agent tools |
 | `workspace/SOUL.md` | Agent identity, name, hard constraints |
@@ -1054,6 +1104,80 @@ mcp:
 ```
 
 Or ask the agent at runtime: *"Connect the `my-server` MCP server using `npx -y my-mcp-package`"* — the `add_mcp_server` tool will connect it and persist the config.
+
+### Adding a Dashboard Tab (Plugin)
+
+Plugins can contribute dashboard tabs by returning `dashboardTabs` from `init()`. The tab is only visible when the plugin is loaded.
+
+**1. Define the tab** in your plugin package:
+
+```typescript
+// packages/plugin-myplugin/src/dashboard-tab.ts
+import type { DashboardTab } from "@baseagent/core";
+
+export const myDashboardTab: DashboardTab = {
+  id: "myplugin",                    // Used in CSS class: .myplugin-panel
+  label: "My Plugin",                // Nav bar label
+  onActivate: "loadMyPluginData()",  // Called once on first tab click
+
+  css: `
+.myplugin-panel { flex-direction: column; padding: 20px; }
+.myplugin-title { font-size: 14px; font-weight: 600; }
+`,
+
+  panelHtml: `
+<section class="myplugin-panel" id="myplugin-panel">
+  <div class="myplugin-title">My Plugin Dashboard</div>
+  <div id="myplugin-content"></div>
+</section>
+`,
+
+  js: `
+async function loadMyPluginData() {
+  var el = document.getElementById('myplugin-content');
+  if (!el) return;
+  try {
+    var data = await fetchJSON('/myplugin/data');
+    el.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    el.textContent = 'Failed to load: ' + e.message;
+  }
+}
+`,
+};
+```
+
+**2. Return it from `init()`** alongside optional routes:
+
+```typescript
+import { Hono } from "hono";
+import { myDashboardTab } from "./dashboard-tab.js";
+
+export function createMyPlugin(): Plugin {
+  return {
+    name: "myplugin",
+    phase: "services",
+    async init(ctx) {
+      const app = new Hono();
+      app.get("/data", (c) => c.json({ hello: "world" }));
+
+      return {
+        routes: app,
+        routePrefix: "/myplugin",
+        dashboardTabs: [myDashboardTab],
+      };
+    },
+  };
+}
+```
+
+**Conventions:**
+- The `panelHtml` root element **must** use CSS class `{id}-panel` for show/hide to work
+- Use `fetchJSON()` and `escapeHtml()` — they are provided by the host dashboard
+- Tab JS runs in the global scope; prefix functions/variables to avoid collisions
+- Use `onActivate` for lazy loading to avoid fetching data for tabs the user may never open
+
+See [ADR-008](DECISIONS.md#adr-008-plugin-dashboard-extension-system) for the architectural decision behind this system.
 
 ### Customising the Agent's Identity
 

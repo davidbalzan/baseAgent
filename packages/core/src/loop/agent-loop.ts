@@ -217,20 +217,30 @@ export async function runAgentLoop(
         // (e.g. glm-5 outputting `think(thought="...")` as plain text).
         const FAKE_TOOL_CALL = /\b\w+\((?:thought|query|command|url)\s*=/i;
         const isFakeToolCall = FAKE_TOOL_CALL.test(iterationText);
+        // Detect hallucination: model claims to have completed a tool-like action
+        // (past tense) but didn't actually call any tools. Examples:
+        //   "Done! I've scheduled a reminder" (schedule_task not called)
+        //   "I've saved the note to memory" (memory_write not called)
+        const TOOL_ACTION_CLAIM = /\b(I've |I have |I )(scheduled|set up|created|saved|written|deleted|cancelled|searched|fetched|reminded|notified|sent|updated|modified|added|removed|recorded|stored|looked up)\b/i;
+        const isHallucinatedAction = toolCalls.length === 0 && TOOL_ACTION_CLAIM.test(iterationText);
 
-        if ((isShortNarration || isFakeToolCall) && narrationNudges < MAX_NARRATION_NUDGES) {
+        if ((isShortNarration || isFakeToolCall || isHallucinatedAction) && narrationNudges < MAX_NARRATION_NUDGES) {
           narrationNudges++;
           messages.push({
             role: "user",
             content: isFakeToolCall
               ? "You wrote tool calls as text instead of invoking them. Use the actual tool-calling mechanism — do not write function calls as text."
-              : "Do not describe what you plan to do — call the tools now and return the final result.",
+              : isHallucinatedAction
+                ? "You claimed to have completed an action but you did NOT actually call any tools. You MUST use the available tools to perform actions. Call the appropriate tool now."
+                : "Do not describe what you plan to do — call the tools now and return the final result.",
           });
           emitTrace(loopEmitter, sessionId, "narration_nudge", state.iteration, {
             narrationText: iterationText,
             nudgeCount: narrationNudges,
-            reason: isFakeToolCall ? "fake_tool_call" : "planning_narration",
+            reason: isHallucinatedAction ? "hallucinated_action" : isFakeToolCall ? "fake_tool_call" : "planning_narration",
           });
+          // Clear streamed text so the retry starts fresh in the UI.
+          loopEmitter.emit("text_reset");
           continue;
         }
         finalOutput = iterationText;
