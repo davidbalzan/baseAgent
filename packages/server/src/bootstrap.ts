@@ -10,10 +10,13 @@ const ROOT_DIR = resolve(__dirname, "..", "..", "..");
 import {
   loadConfig,
   resolveModel,
+  resolveSingleModel,
   LoopEmitter,
   fetchOpenRouterPricing,
   type AppConfig,
   type CoreMessage,
+  type LanguageModel,
+  type ModelPricing,
 } from "@baseagent/core";
 import {
   initDatabase,
@@ -27,7 +30,6 @@ import {
 import {
   ToolRegistry,
   finishTool,
-  thinkTool,
   createAddMcpServerTool,
   createMemoryReadTool,
   createMemoryWriteTool,
@@ -135,9 +137,10 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   // 3. Resolve LLM model (with optional fallback chain)
   const model = await resolveModel(config, {
     onFallback: (event) => {
+      const errMsg = event.error instanceof Error ? event.error.message : String(event.error);
       console.warn(
-        `[model] Fallback: ${event.failedProvider}/${event.failedModelId} failed, ` +
-        `switching to ${event.selectedProvider}/${event.selectedModelId}`
+        `[model] Fallback: ${event.failedProvider}/${event.failedModelId} failed ` +
+        `(${errMsg}), switching to ${event.selectedProvider}/${event.selectedModelId}`
       );
     },
   });
@@ -145,11 +148,30 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   console.log(`[model] Resolved ${config.llm.provider}/${config.llm.model}` +
     (fallbackCount > 0 ? ` with ${fallbackCount} fallback(s)` : ""));
 
+  // 3b. Resolve capable model for dual-model routing (if configured)
+  let capableModel: LanguageModel | undefined;
+  let capablePricing: ModelPricing | undefined;
+  if (config.llm.capableModel) {
+    const cm = config.llm.capableModel;
+    capableModel = await resolveSingleModel({
+      provider: cm.provider,
+      model: cm.model,
+      apiKey: config.llm.apiKey,
+      providers: config.llm.providers,
+    });
+    if (cm.costPerMInputTokens !== undefined && cm.costPerMOutputTokens !== undefined) {
+      capablePricing = {
+        costPerMInputTokens: cm.costPerMInputTokens,
+        costPerMOutputTokens: cm.costPerMOutputTokens,
+      };
+    }
+    console.log(`[model] Capable model: ${cm.provider}/${cm.model}`);
+  }
+
   // 4. Register built-in tools
   const workspacePath = resolve(ROOT_DIR, "workspace");
   const registry = new ToolRegistry();
   registry.register(finishTool);
-  registry.register(thinkTool);
   registry.register(createMemoryReadTool(workspacePath));
   registry.register(createMemoryWriteTool(workspacePath));
   registry.register(createFileReadTool(workspacePath));
@@ -278,6 +300,8 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     toolRateLimiter: toolLimiter,
     pricing: livePricing,
     liveSessionBus,
+    capableModel,
+    capablePricing,
   };
 
   // 7. Build Hono app

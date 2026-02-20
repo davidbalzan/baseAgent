@@ -1,12 +1,19 @@
 llm:
   provider: openrouter
-  model: google/gemini-2.0-flash-001
+  model: z-ai/glm-4.7-flash
   apiKey: ${OPENROUTER_API_KEY}
-  costPerMInputTokens: 0.1
-  costPerMOutputTokens: 0.4
+  costPerMInputTokens: 0.06
+  costPerMOutputTokens: 0.40
+  capableModel:
+    provider: openrouter
+    model: z-ai/glm-5
+    costPerMInputTokens: 0.3
+    costPerMOutputTokens: 2.55
   fallbackModels:
     - provider: openrouter
       model: z-ai/glm-5
+      costPerMInputTokens: 0.3
+      costPerMOutputTokens: 2.55
   providers:
     anthropic:
       apiKey: ${ANTHROPIC_API_KEY}

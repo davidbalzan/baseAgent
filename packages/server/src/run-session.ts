@@ -4,6 +4,7 @@ import {
   LoopEmitter,
   INJECTION_DEFENSE_PREAMBLE,
   detectSystemPromptLeakage,
+  selectModel,
   type AppConfig,
   type LoopState,
   type ToolMessageMeta,
@@ -72,6 +73,9 @@ export interface RunSessionDeps {
   pricing?: ModelPricing;
   /** Pub/sub bus for streaming live session events to the dashboard (UI-2). */
   liveSessionBus?: LiveSessionBus;
+  /** Stronger model for tool-heavy / coding tasks (dual-model routing). */
+  capableModel?: LanguageModel;
+  capablePricing?: ModelPricing;
 }
 
 export interface RunSessionResult {
@@ -85,7 +89,19 @@ export async function runSession(
   deps: RunSessionDeps,
   externalEmitter?: LoopEmitter,
 ): Promise<RunSessionResult> {
-  const { model, registry, config, workspacePath, sessionRepo, traceRepo, messageRepo } = deps;
+  const { registry, config, workspacePath, sessionRepo, traceRepo, messageRepo } = deps;
+
+  // Dual-model routing: pick capable model when input signals tool/coding intent.
+  const selection = selectModel(input.input, {
+    default: { model: deps.model, pricing: resolvePricing(config, deps.pricing) },
+    capable: deps.capableModel
+      ? { model: deps.capableModel, pricing: deps.capablePricing }
+      : undefined,
+  });
+  const model = selection.model;
+  if (selection.routed) {
+    console.log(`[model] Routed to capable model (${model.modelId}) for this session`);
+  }
 
   // Resolve per-user workspace directory for memory segregation.
   // Shared files (SOUL.md, PERSONALITY.md, HEARTBEAT.md) load from workspace root.
@@ -99,9 +115,11 @@ export async function runSession(
   // Prepend the injection defense preamble so the model treats <user_input>
   // tagged content as untrusted (GV-6).
   const memoryContent = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget, userDir);
-  const systemPrompt = `${INJECTION_DEFENSE_PREAMBLE}\n\n${memoryContent}`;
+  const now = new Date();
+  const dateStamp = `Current date: ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Current time: ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })}.`;
+  const systemPrompt = `${INJECTION_DEFENSE_PREAMBLE}\n\n${dateStamp}\n\n${memoryContent}`;
 
-  // 1. Create or reuse session
+  // 1. Create or reuse session (record the actual routed model, not the default)
   const sessionId = input.sessionId ?? sessionRepo.create({
     input: input.input,
     channelId: input.channelId,
@@ -180,7 +198,7 @@ export async function runSession(
       workspacePath,
       toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
       toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
-      pricing: resolvePricing(config, deps.pricing),
+      pricing: selection.pricing,
       conversationHistory: input.conversationHistory,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initialMessages: input.initialMessages as any,

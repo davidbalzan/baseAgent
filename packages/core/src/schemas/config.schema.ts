@@ -31,12 +31,19 @@ const FallbackModelSchema = z.object({
   conversationHistoryTokenBudget: z.number().int().positive().optional(),
 }).merge(ModelPricingSchema);
 
+const CapableModelSchema = z.object({
+  provider: LlmProviderSchema,
+  model: z.string(),
+}).merge(ModelPricingSchema);
+
 const LlmConfigSchema = z.object({
   provider: LlmProviderSchema,
   model: z.string(),
   apiKey: optionalString,
   providers: ProviderOverridesSchema.optional(),
   fallbackModels: z.array(FallbackModelSchema).optional(),
+  /** Stronger model used for tool-heavy / coding tasks. Omit to disable routing. */
+  capableModel: CapableModelSchema.optional(),
   /** Token budget for conversation history. Overrides memory.conversationHistoryTokenBudget. */
   conversationHistoryTokenBudget: z.number().int().positive().optional(),
 }).merge(ModelPricingSchema);

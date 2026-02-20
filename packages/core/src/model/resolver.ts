@@ -15,21 +15,22 @@ export async function resolveSingleModel(spec: SingleModelSpec): Promise<Languag
   switch (provider) {
     case "openrouter": {
       const { createOpenRouter } = await import("@openrouter/ai-sdk-provider");
-      const openrouter = createOpenRouter({ apiKey });
+      // Pass undefined (not empty string) to let the SDK fall back to env var lookup.
+      const openrouter = createOpenRouter({ apiKey: apiKey || undefined });
       return openrouter(model);
     }
 
     case "anthropic": {
       const { createAnthropic } = await import("@ai-sdk/anthropic");
       const key = providers?.anthropic?.apiKey ?? apiKey;
-      const anthropic = createAnthropic({ apiKey: key });
+      const anthropic = createAnthropic({ apiKey: key || undefined });
       return anthropic(model);
     }
 
     case "openai": {
       const { createOpenAI } = await import("@ai-sdk/openai");
       const key = providers?.openai?.apiKey ?? apiKey;
-      const openai = createOpenAI({ apiKey: key });
+      const openai = createOpenAI({ apiKey: key || undefined });
       return openai(model);
     }
 
@@ -66,7 +67,9 @@ export async function resolveModel(
       resolveSingleModel({
         provider: fb.provider,
         model: fb.model,
-        apiKey: fb.apiKey,
+        // Inherit top-level apiKey when fallback doesn't specify its own.
+        // For cross-provider fallbacks, providers map takes precedence in resolveSingleModel.
+        apiKey: fb.apiKey ?? config.llm.apiKey,
         providers: config.llm.providers,
       }),
     ),

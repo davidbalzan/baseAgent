@@ -214,8 +214,8 @@ export class TelegramAdapter implements ChannelAdapter {
     // so we verify the token with getMe() first, then fire-and-forget launch.
     const botInfo = await this.bot.telegram.getMe();
     console.log(`[telegram] Bot @${botInfo.username} authenticated`);
-    this.bot.launch({ dropPendingUpdates: true });
-    console.log("[telegram] Bot started (long polling)");
+    this.bot.launch({ dropPendingUpdates: false });
+    console.log("[telegram] Bot started (long polling, will process queued messages)");
   }
 
   async stop(): Promise<void> {

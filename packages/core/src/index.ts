@@ -39,6 +39,8 @@ export { resolveModel, resolveSingleModel } from "./model/resolver.js";
 export { createFallbackModel } from "./model/fallback-model.js";
 export type { FallbackCallback } from "./model/fallback-model.js";
 export { fetchOpenRouterPricing } from "./model/openrouter-pricing.js";
+export { selectModel } from "./model/model-selector.js";
+export type { ModelOption, ModelSelectionResult } from "./model/model-selector.js";
 export type { LanguageModel, CoreMessage } from "ai";
 
 // Loop

@@ -5,7 +5,12 @@ import { AppConfigSchema, type AppConfig } from "../schemas/config.schema.js";
 
 function substituteEnvVars(text: string): string {
   return text.replace(/\$\{(\w+)\}/g, (_, varName: string) => {
-    return process.env[varName] ?? "";
+    const value = process.env[varName];
+    if (value === undefined) {
+      console.warn(`[config] Environment variable ${varName} is not set`);
+      return "";
+    }
+    return value;
   });
 }
 

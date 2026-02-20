@@ -150,6 +150,7 @@ export async function runAgentLoop(
       });
 
       let iterationText = "";
+      let reasoningText = "";
       const toolCalls: Array<{ toolCallId: string; toolName: string; args: Record<string, unknown> }> = [];
 
       for await (const part of response.fullStream) {
@@ -159,6 +160,10 @@ export async function runAgentLoop(
           case "text-delta":
             iterationText += part.textDelta;
             loopEmitter.emit("text_delta", part.textDelta);
+            break;
+
+          case "reasoning":
+            reasoningText += part.textDelta;
             break;
 
           case "tool-call":
@@ -177,11 +182,16 @@ export async function runAgentLoop(
       }
 
       const usage = await response.usage;
+      const reasoningTokens = (usage as Record<string, unknown>).outputTokenDetails
+        ? ((usage as Record<string, unknown>).outputTokenDetails as { reasoningTokens?: number }).reasoningTokens
+        : undefined;
       updateUsage(state, usage.promptTokens, usage.completionTokens, pricing);
 
       emitTrace(loopEmitter, sessionId, "reason", state.iteration, {
         text: iterationText,
         toolCallCount: toolCalls.length,
+        ...(reasoningText ? { reasoningText } : {}),
+        ...(reasoningTokens ? { reasoningTokens } : {}),
       }, {
         prompt: usage.promptTokens,
         completion: usage.completionTokens,
@@ -196,17 +206,30 @@ export async function runAgentLoop(
 
       if (finishReason !== "tool-calls" || toolCalls.length === 0) {
         // Detect narration: model described plans but didn't call any tools.
-        // Nudge it to continue executing instead of ending the session.
-        const PLAN_PATTERN = /\b(I will|I'll|let me|I need to|I'm going to|I should|I can)\b/i;
-        if (PLAN_PATTERN.test(iterationText) && narrationNudges < MAX_NARRATION_NUDGES) {
+        // Only nudge when the response is PRIMARILY planning intent — not a
+        // completed answer that happens to contain future-tense phrasing.
+        // Heuristic: short text (<300 chars) dominated by planning verbs with
+        // no concrete data (numbers, URLs, code blocks) is likely narration.
+        const PLAN_VERBS = /\b(I will|I'll|let me|I need to|I'm going to|I should|I can|I am going to)\b/i;
+        const HAS_CONTENT = /(\d{2,}|https?:\/\/|```|[A-Z][a-z]+ is |the answer|the result|your |here's|here is)/i;
+        const isShortNarration = iterationText.length < 300 && PLAN_VERBS.test(iterationText) && !HAS_CONTENT.test(iterationText);
+        // Also detect when the model emits tool-call-like text instead of actual tool calls
+        // (e.g. glm-5 outputting `think(thought="...")` as plain text).
+        const FAKE_TOOL_CALL = /\b\w+\((?:thought|query|command|url)\s*=/i;
+        const isFakeToolCall = FAKE_TOOL_CALL.test(iterationText);
+
+        if ((isShortNarration || isFakeToolCall) && narrationNudges < MAX_NARRATION_NUDGES) {
           narrationNudges++;
           messages.push({
             role: "user",
-            content: "Do not describe what you plan to do — call the tools now and return the final result.",
+            content: isFakeToolCall
+              ? "You wrote tool calls as text instead of invoking them. Use the actual tool-calling mechanism — do not write function calls as text."
+              : "Do not describe what you plan to do — call the tools now and return the final result.",
           });
           emitTrace(loopEmitter, sessionId, "narration_nudge", state.iteration, {
             narrationText: iterationText,
             nudgeCount: narrationNudges,
+            reason: isFakeToolCall ? "fake_tool_call" : "planning_narration",
           });
           continue;
         }
