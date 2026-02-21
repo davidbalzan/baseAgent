@@ -96,6 +96,12 @@ const AgentConfigSchema = z.object({
   maxIterations: z.number().int().positive().default(10),
   timeoutMs: z.number().int().positive().default(120_000),
   costCapUsd: z.number().positive().default(1.0),
+  /** Max narration nudges per session before the loop stops correcting planning-without-acting. */
+  maxNarrationNudges: z.number().int().nonnegative().default(2),
+  /** Max finish-gate nudges per session before accepting a weak completion. */
+  maxFinishGateNudges: z.number().int().nonnegative().default(1),
+  /** Default max chars for tool output before truncation (individual tools can override). */
+  defaultMaxOutputChars: z.number().int().positive().default(10_000),
 });
 
 const MemoryConfigSchema = z.object({
@@ -142,6 +148,7 @@ const ReflectionConfigSchema = z.object({
   maxNudgesPerIteration: z.number().int().nonnegative().default(1),
   sessionSummary: z.boolean().default(true),
   persistToUserMemory: z.boolean().default(false),
+  finishGate: z.boolean().default(true),
 });
 
 const RateLimitWindowSchema = z.object({

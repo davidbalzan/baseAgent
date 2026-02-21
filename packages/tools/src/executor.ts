@@ -5,6 +5,11 @@ import { applySandbox } from "./sandbox/apply.js";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_CHARS = 10_000;
 
+export interface ToolExecutorOptions {
+  /** Fallback max output chars when a tool doesn't specify its own. Default: 10_000. */
+  defaultMaxOutputChars?: number;
+}
+
 interface ToolExecResult {
   result: string;
   error?: string;
@@ -20,9 +25,10 @@ export async function executeTool(
   tool: ToolDefinition,
   args: Record<string, unknown>,
   sandboxCtx?: SandboxContext,
+  options?: ToolExecutorOptions,
 ): Promise<ToolExecResult> {
   const timeoutMs = tool.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxOutputChars = tool.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
+  const maxOutputChars = tool.maxOutputChars ?? options?.defaultMaxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
   const start = Date.now();
 
   try {
@@ -65,6 +71,7 @@ export async function executeTool(
 export function createToolExecutor(
   getToolFn: (name: string) => ToolDefinition | undefined,
   getSandboxCtx?: (toolName: string) => SandboxContext | undefined,
+  options?: ToolExecutorOptions,
 ): (name: string, args: Record<string, unknown>) => Promise<ToolExecResult> {
   return async (name, args) => {
     const tool = getToolFn(name);
@@ -76,6 +83,6 @@ export function createToolExecutor(
       };
     }
     const sandboxCtx = getSandboxCtx?.(name);
-    return executeTool(tool, args, sandboxCtx);
+    return executeTool(tool, args, sandboxCtx, options);
   };
 }

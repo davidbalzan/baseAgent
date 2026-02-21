@@ -1,5 +1,5 @@
 export { ToolRegistry } from "./registry.js";
-export { executeTool, createToolExecutor } from "./executor.js";
+export { executeTool, createToolExecutor, type ToolExecutorOptions } from "./executor.js";
 
 // Sandbox
 export { buildSandboxContext, checkDockerAvailability } from "./sandbox/index.js";

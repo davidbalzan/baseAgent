@@ -248,6 +248,7 @@ export async function runSession(
       if (tool?.permission !== "exec") return undefined;
       return buildSandboxContext(toolName, workspacePath, config);
     },
+    { defaultMaxOutputChars: config.agent.defaultMaxOutputChars },
   );
   const defaultPolicy: GovernancePolicy = { read: "auto-allow", write: "confirm", exec: "confirm" };
   const executeTool = createGovernedExecutor(rawExecutor, {
@@ -288,6 +289,8 @@ export async function runSession(
       initialToolMessageMeta: input.initialToolMessageMeta,
       initialState: input.initialState,
       reflection: config.reflection,
+      maxNarrationNudges: config.agent.maxNarrationNudges,
+      maxFinishGateNudges: config.agent.maxFinishGateNudges,
     }, emitter);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -10,6 +10,7 @@ import { createToolFailureState, processToolResults } from "./tool-failure-track
 import {
   reflectBeforeToolCall,
   reflectAfterToolCall,
+  shouldNudgeForWeakCompletion,
   type ReflectionSessionSummary,
 } from "./reflection.js";
 
@@ -45,7 +46,12 @@ export interface AgentLoopOptions {
     maxNudgesPerIteration?: number;
     sessionSummary?: boolean;
     persistToUserMemory?: boolean;
+    finishGate?: boolean;
   };
+  /** Max narration nudges before the loop stops correcting planning-without-acting. Default: 2. */
+  maxNarrationNudges?: number;
+  /** Max finish-gate nudges before accepting a weak completion. Default: 1. */
+  maxFinishGateNudges?: number;
 }
 
 export interface AgentLoopResult {
@@ -124,6 +130,8 @@ export async function runAgentLoop(
     initialToolMessageMeta,
     initialState,
     reflection,
+    maxNarrationNudges: configMaxNarrationNudges,
+    maxFinishGateNudges: configMaxFinishGateNudges,
   } = options;
 
   const sessionId = providedSessionId ?? randomUUID();
@@ -153,7 +161,7 @@ export async function runAgentLoop(
   const sdkTools = toolsToSdkFormat(tools);
   let finalOutput = "";
   let narrationNudges = 0;
-  const MAX_NARRATION_NUDGES = 2;
+  const MAX_NARRATION_NUDGES = configMaxNarrationNudges ?? 2;
   const failureState = createToolFailureState();
   const toolMessageMeta: ToolMessageMeta[] = initialToolMessageMeta
     ? [...initialToolMessageMeta]
@@ -163,6 +171,13 @@ export async function runAgentLoop(
   const reflectionPostEnabled = reflection?.postActionChecks ?? true;
   const maxReflectionNudgesPerIteration = reflection?.maxNudgesPerIteration ?? 1;
   const reflectionSessionSummaryEnabled = reflection?.sessionSummary ?? true;
+  const reflectionFinishGateEnabled = reflection?.finishGate ?? true;
+  let finishGateNudges = 0;
+  const MAX_FINISH_GATE_NUDGES = configMaxFinishGateNudges ?? 1;
+  let totalToolCalls = 0;
+  let totalToolErrors = 0;
+  let totalToolSuccesses = 0;
+  const toolStats: Record<string, { success: number; error: number }> = {};
   const reflectionStats: ReflectionSessionSummary = {
     preChecks: 0,
     blockedCalls: 0,
@@ -281,6 +296,29 @@ export async function runAgentLoop(
           loopEmitter.emit("text_reset");
           continue;
         }
+
+        if (reflectionEnabled && reflectionFinishGateEnabled && finishGateNudges < MAX_FINISH_GATE_NUDGES) {
+          const completionCheck = shouldNudgeForWeakCompletion({
+            totalToolCalls,
+            totalToolErrors,
+            totalToolSuccesses,
+            output: iterationText,
+            toolStats,
+          });
+          if (completionCheck.shouldNudge && completionCheck.recommendation) {
+            finishGateNudges++;
+            messages.push({ role: "user", content: completionCheck.recommendation });
+            emitTrace(loopEmitter, sessionId, "replan", state.iteration, {
+              reason: completionCheck.reason ?? "finish_gate",
+              totalToolCalls,
+              totalToolErrors,
+              totalToolSuccesses,
+            });
+            loopEmitter.emit("text_reset");
+            continue;
+          }
+        }
+
         finalOutput = iterationText;
         break;
       }
@@ -288,7 +326,30 @@ export async function runAgentLoop(
       // Check for finish tool
       const finishCall = toolCalls.find((tc) => tc.toolName === "finish");
       if (finishCall) {
-        finalOutput = (finishCall.args as { summary?: string }).summary ?? iterationText;
+        const finishSummary = (finishCall.args as { summary?: string }).summary ?? iterationText;
+        if (reflectionEnabled && reflectionFinishGateEnabled && finishGateNudges < MAX_FINISH_GATE_NUDGES) {
+          const completionCheck = shouldNudgeForWeakCompletion({
+            totalToolCalls,
+            totalToolErrors,
+            totalToolSuccesses,
+            output: finishSummary,
+            toolStats,
+          });
+          if (completionCheck.shouldNudge && completionCheck.recommendation) {
+            finishGateNudges++;
+            messages.push({ role: "user", content: completionCheck.recommendation });
+            emitTrace(loopEmitter, sessionId, "replan", state.iteration, {
+              reason: completionCheck.reason ?? "finish_gate",
+              via: "finish_tool",
+              totalToolCalls,
+              totalToolErrors,
+              totalToolSuccesses,
+            });
+            loopEmitter.emit("text_reset");
+            continue;
+          }
+        }
+        finalOutput = finishSummary;
         emitTrace(loopEmitter, sessionId, "finish", state.iteration, {
           summary: finalOutput,
         });
@@ -301,6 +362,12 @@ export async function runAgentLoop(
         content: [],
       };
       const reflectionNudges: string[] = [];
+      const plannedToolNames = toolCalls.map((tc) => tc.toolName);
+      emitTrace(loopEmitter, sessionId, "plan", state.iteration, {
+        toolCount: toolCalls.length,
+        toolNames: plannedToolNames,
+      });
+      totalToolCalls += toolCalls.length;
 
       for (const tc of toolCalls) {
         const toolDef = tools[tc.toolName];
@@ -331,6 +398,16 @@ export async function runAgentLoop(
               durationMs: 0,
             }
           : await executeTool(tc.toolName, tc.args);
+
+        if (execResult.error) {
+          totalToolErrors += 1;
+          toolStats[tc.toolName] = toolStats[tc.toolName] ?? { success: 0, error: 0 };
+          toolStats[tc.toolName].error += 1;
+        } else {
+          totalToolSuccesses += 1;
+          toolStats[tc.toolName] = toolStats[tc.toolName] ?? { success: 0, error: 0 };
+          toolStats[tc.toolName].success += 1;
+        }
 
         loopEmitter.emit("tool_result", {
           toolCallId: tc.toolCallId,
@@ -388,6 +465,22 @@ export async function runAgentLoop(
       // Track per-tool failures and nudge the model when tools are repeatedly broken.
       const toolCallResults = (toolResults.content as Array<{ toolCallId: string; toolName: string; result: string }>)
         .map((r) => ({ toolCallId: r.toolCallId, toolName: r.toolName, isError: r.result.startsWith("Error:") }));
+      const iterationErrorCount = toolCallResults.filter((r) => r.isError).length;
+      const iterationSuccessCount = toolCallResults.length - iterationErrorCount;
+      emitTrace(loopEmitter, sessionId, "verify", state.iteration, {
+        toolCount: toolCallResults.length,
+        successCount: iterationSuccessCount,
+        errorCount: iterationErrorCount,
+        toolStats,
+      });
+
+      if (iterationErrorCount > 0) {
+        emitTrace(loopEmitter, sessionId, "replan", state.iteration, {
+          reason: iterationErrorCount === toolCallResults.length ? "all_tools_failed" : "partial_tool_failures",
+          failedToolNames: toolCallResults.filter((r) => r.isError).map((r) => r.toolName),
+        });
+      }
+
       const recovery = processToolResults(failureState, toolCallResults);
       if (recovery) {
         messages.push({ role: "user", content: recovery.message });

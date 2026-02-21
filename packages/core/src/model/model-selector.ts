@@ -1,6 +1,23 @@
 import type { LanguageModel } from "ai";
 import type { ModelPricing } from "../loop/loop-state.js";
 
+/**
+ * Keywords that trigger routing to the capable (stronger) model.
+ *
+ * **Known simplification**: This is a substring match against the raw user
+ * input — simple, fast, and good-enough for most cases. It has known
+ * limitations:
+ *
+ * - False positives: "I want to *run* to the store" matches "run"
+ * - False negatives: Sophisticated prompts that don't use these words
+ * - No semantic understanding: Can't distinguish intent from mention
+ *
+ * This is intentional. The cost difference between the default and capable
+ * model is the primary concern. For most real-world usage, keyword matching
+ * captures >90% of tool-heavy/coding requests accurately. If finer control
+ * is needed, consider an LLM-based classifier (at the cost of an extra
+ * inference call per request).
+ */
 const CAPABLE_KEYWORDS = [
   // Development — tasks that benefit from the stronger model
   "code", "implement", "refactor", "debug", "fix", "bug",
@@ -26,6 +43,12 @@ export interface ModelSelectionResult {
   routed: boolean;
 }
 
+/**
+ * Route a user message to either the default (cheap) or capable (strong) model
+ * using keyword-based heuristics. See {@link CAPABLE_KEYWORDS} for details.
+ *
+ * Returns `routed: true` when the capable model was selected.
+ */
 export function selectModel(
   input: string,
   models: { default: ModelOption; capable?: ModelOption },
