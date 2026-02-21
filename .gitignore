@@ -26,6 +26,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Session traces
+traces/
+
 # pnpm
 .pnpm-debug.log
 
