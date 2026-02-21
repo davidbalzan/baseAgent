@@ -74,6 +74,18 @@ export class SessionRepository {
       .run();
   }
 
+  /** Mark any sessions stuck in `pending` status as `failed`.
+   *  Called at startup to clean up sessions orphaned by a crash or hung model call. */
+  markStalePendingAsFailed(): number {
+    const now = new Date().toISOString();
+    const result = this.db
+      .update(sessions)
+      .set({ status: "failed", output: "Session interrupted (server restart)", updatedAt: now })
+      .where(eq(sessions.status, "pending"))
+      .run();
+    return result.changes;
+  }
+
   listRecent(limit = 20) {
     return this.db
       .select()

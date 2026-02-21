@@ -47,6 +47,13 @@ const CapableModelSchema = z.object({
   model: z.string(),
 }).merge(ModelPricingSchema);
 
+const StageRoutingSchema = z.object({
+  enabled: z.boolean().default(true),
+  escalationConsecutiveErrorIterations: z.number().int().positive().default(2),
+  maxCapableIterations: z.number().int().positive().default(2),
+  maxCapableCostUsd: z.number().nonnegative().default(0.20),
+});
+
 const LlmConfigSchema = z.object({
   provider: LlmProviderSchema,
   model: z.string(),
@@ -60,6 +67,8 @@ const LlmConfigSchema = z.object({
   capableFallbackModels: z.array(FallbackModelSchema).optional(),
   /** Token budget for conversation history. Overrides memory.conversationHistoryTokenBudget. */
   conversationHistoryTokenBudget: z.number().int().positive().optional(),
+  /** Runtime stage-based routing policy for escalating to capable model. */
+  stageRouting: StageRoutingSchema.optional(),
 }).merge(ModelPricingSchema);
 
 const ChannelConfigSchema = z.object({

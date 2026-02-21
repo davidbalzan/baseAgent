@@ -11,6 +11,9 @@ import { TaskStore } from "./task-store.js";
 import { createScheduleTaskTool } from "./tools/schedule-task.tool.js";
 import { createListTasksTool } from "./tools/list-tasks.tool.js";
 import { createCancelTaskTool } from "./tools/cancel-task.tool.js";
+import { createCheckSchedulerHealthTool } from "./tools/check-scheduler-health.tool.js";
+import { createTestChannelDeliveryTool } from "./tools/test-channel-delivery.tool.js";
+import { createReadServerLogsTool } from "./tools/read-server-logs.tool.js";
 import { schedulerDashboardTab } from "./dashboard-tab.js";
 import { createTaskScheduler, type TaskScheduler } from "./scheduler.js";
 
@@ -21,6 +24,9 @@ export { createScheduleTaskTool } from "./tools/schedule-task.tool.js";
 export function createSchedulerPlugin(): Plugin {
   let store: TaskStore | null = null;
   let scheduler: TaskScheduler | null = null;
+
+  // Deferred wiring: the test-delivery tool needs sendProactiveMessage which is only available in afterInit
+  let testDeliveryTool: ReturnType<typeof createTestChannelDeliveryTool> | null = null;
 
   return {
     name: "scheduler",
@@ -40,11 +46,16 @@ export function createSchedulerPlugin(): Plugin {
         return c.json({ tasks });
       });
 
+      testDeliveryTool = createTestChannelDeliveryTool();
+
       return {
         tools: [
           createScheduleTaskTool(store),
           createListTasksTool(store),
           createCancelTaskTool(store),
+          createCheckSchedulerHealthTool(store, () => scheduler),
+          testDeliveryTool,
+          createReadServerLogsTool(),
         ],
         routes: app,
         routePrefix: "/scheduler",
@@ -64,6 +75,9 @@ export function createSchedulerPlugin(): Plugin {
             "| `schedule_task` | write | Schedule a task for future execution. Accepts `task` (description) and `executeAt` (ISO 8601 datetime). |",
             "| `list_scheduled_tasks` | read | List all scheduled tasks with their status. |",
             "| `cancel_scheduled_task` | write | Cancel a pending task by its ID. |",
+            "| `check_scheduler_health` | read | Check scheduler health: tick stats, task counts, delivery outcomes, errors. |",
+            "| `test_channel_delivery` | write | Send a test message to a channel to verify delivery works. |",
+            "| `read_server_logs` | read | Read recent server log entries from the in-memory buffer. Filter by name/level. |",
             "",
             "## Task Lifecycle",
             "",
@@ -72,13 +86,20 @@ export function createSchedulerPlugin(): Plugin {
             "3. **completed** — Task finished successfully",
             "4. **failed** — Task execution encountered an error",
             "",
+            "### Delivery Status",
+            "",
+            "After a task completes, delivery of results is tracked separately:",
+            "- **delivered** — Result successfully sent to the channel",
+            "- **failed** — Delivery attempt failed (error details stored)",
+            "- **skipped** — No channel or no adapter available",
+            "",
             "## API",
             "",
             "- `GET /scheduler/tasks` — Returns all tasks sorted by creation date (newest first)",
             "",
             "## Dashboard",
             "",
-            "The **Tasks** tab in the dashboard displays all scheduled tasks as cards with status badges, execution times, and channel information.",
+            "The **Tasks** tab in the dashboard displays all scheduled tasks as cards with status badges, delivery status badges, execution times, and channel information.",
             "",
             "## Storage",
             "",
@@ -90,6 +111,15 @@ export function createSchedulerPlugin(): Plugin {
 
     async afterInit(ctx: PluginAfterInitContext): Promise<void> {
       if (!store) return;
+
+      // Clean up stale "running" tasks from previous crashes
+      const staleCount = store.markStaleRunningAsFailed();
+      if (staleCount > 0) ctx.log(`[scheduler] Marked ${staleCount} stale running task(s) as failed`);
+
+      // Wire the deferred sendProactiveMessage into the test-delivery tool
+      if (testDeliveryTool && ctx.sendProactiveMessage) {
+        testDeliveryTool.setSendFn(ctx.sendProactiveMessage);
+      }
 
       const runSession = ctx.createSessionRunner();
       scheduler = createTaskScheduler({

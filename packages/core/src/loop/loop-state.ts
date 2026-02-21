@@ -40,7 +40,7 @@ export function updateUsage(
   state.promptTokens += promptTokens;
   state.completionTokens += completionTokens;
   state.totalTokens = state.promptTokens + state.completionTokens;
-  state.estimatedCostUsd =
-    (state.promptTokens / 1_000_000) * pricing.costPerMInputTokens +
-    (state.completionTokens / 1_000_000) * pricing.costPerMOutputTokens;
+  state.estimatedCostUsd +=
+    (promptTokens / 1_000_000) * pricing.costPerMInputTokens +
+    (completionTokens / 1_000_000) * pricing.costPerMOutputTokens;
 }

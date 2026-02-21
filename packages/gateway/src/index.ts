@@ -11,6 +11,7 @@ export type {
 
 // Message queue + proactive routing
 export { createQueuedHandler } from "./queue.js";
+export type { QueuedHandlerOptions } from "./queue.js";
 export { createProactiveMessenger, type SendProactiveMessageFn } from "./proactive.js";
 
 // Shared utilities

@@ -115,6 +115,39 @@ export const schedulerDashboardTab: DashboardTab = {
 .badge-task-completed { background: rgba(79,255,143,.1); color: var(--green); }
 .badge-task-failed { background: rgba(255,79,106,.1); color: var(--red); }
 
+.badge-delivery-delivered { background: rgba(79,255,143,.1); color: var(--green); font-size: 9px; }
+.badge-delivery-failed { background: rgba(255,79,106,.1); color: var(--red); font-size: 9px; }
+.badge-delivery-skipped { background: rgba(150,150,150,.1); color: var(--text-2); font-size: 9px; }
+
+.task-error-detail {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--red);
+  background: rgba(255,79,106,.05);
+  border: 1px solid rgba(255,79,106,.15);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-top: 8px;
+  word-break: break-all;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+.task-error-detail.open { max-height: 200px; }
+
+.task-error-toggle {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--red);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 4px;
+  opacity: 0.8;
+}
+.task-error-toggle:hover { opacity: 1; }
+
 @media (max-width: 700px) {
   .tasks-grid { grid-template-columns: 1fr; padding: 12px 14px; }
 }
@@ -169,10 +202,30 @@ function renderTasks(tasks) {
     var executeTime = formatTaskTime(t.executeAt);
     var createdTime = formatTime(t.createdAt);
 
+    var deliveryBadge = '';
+    if (t.deliveryStatus === 'delivered') {
+      deliveryBadge = '<span class="badge badge-delivery-delivered">delivered</span>';
+    } else if (t.deliveryStatus === 'failed') {
+      deliveryBadge = '<span class="badge badge-delivery-failed">delivery failed</span>';
+    } else if (t.deliveryStatus === 'skipped') {
+      deliveryBadge = '<span class="badge badge-delivery-skipped">no channel</span>';
+    }
+
+    var errorSection = '';
+    if (t.error) {
+      var errId = 'err-' + shortId;
+      errorSection =
+        '<button class="task-error-toggle" onclick="toggleError(\\x27' + errId + '\\x27)">show error</button>' +
+        '<div class="task-error-detail" id="' + errId + '">' + escapeHtml(t.error) + '</div>';
+    }
+
     return '<div class="task-card">' +
       '<div class="task-card-top">' +
         '<span class="task-card-id">' + escapeHtml(shortId) + '</span>' +
-        '<span class="badge badge-task-' + t.status + '">' + t.status + '</span>' +
+        '<div style="display:flex;gap:4px;align-items:center">' +
+          '<span class="badge badge-task-' + t.status + '">' + t.status + '</span>' +
+          deliveryBadge +
+        '</div>' +
       '</div>' +
       '<div class="task-card-desc">' + escapeHtml(t.task) + '</div>' +
       '<div class="task-card-meta">' +
@@ -180,8 +233,14 @@ function renderTasks(tasks) {
         (t.channelId ? '<span class="channel-tag ' + channelColorClass(t.channelId) + '">' + escapeHtml(t.channelId.split(':')[0]) + '</span>' : '') +
         '<span class="task-meta-item" style="margin-left:auto">Created ' + createdTime + '</span>' +
       '</div>' +
+      errorSection +
     '</div>';
   }).join('');
+}
+
+function toggleError(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
 }
 
 function formatTaskTime(iso) {

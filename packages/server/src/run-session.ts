@@ -234,8 +234,23 @@ export async function runSession(
     tools.memory_write = createMemoryWriteTool(workspacePath, userDir) as any;
   }
 
-  // Note: schedule_task now accepts an optional channelId parameter directly,
-  // so no per-session overlay is needed. The channelId is passed as a tool argument.
+  // Overlay schedule_task to inject the session's channelId so reminders
+  // are always delivered back to the originating channel (e.g. Telegram chat).
+  // The LLM almost never passes channelId explicitly, so bake it in.
+  if (input.channelId && tools.schedule_task) {
+    const original = tools.schedule_task;
+    tools.schedule_task = {
+      ...original,
+      async execute(args: Record<string, unknown>) {
+        // Inject channelId if the LLM didn't provide one
+        if (!args.channelId) {
+          args.channelId = input.channelId;
+        }
+        return original.execute(args);
+      },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
 
   // 4. Build tool executor with governance wrapper.
   //    Resolve from the overlaid `tools` map first, falling back to the registry
@@ -289,6 +304,14 @@ export async function runSession(
       initialToolMessageMeta: input.initialToolMessageMeta,
       initialState: input.initialState,
       reflection: config.reflection,
+      stageRouting: {
+        enabled: config.llm.stageRouting?.enabled ?? false,
+        capableModel: deps.capableModel,
+        capablePricing: deps.capablePricing,
+        escalationConsecutiveErrorIterations: config.llm.stageRouting?.escalationConsecutiveErrorIterations,
+        maxCapableIterations: config.llm.stageRouting?.maxCapableIterations,
+        maxCapableCostUsd: config.llm.stageRouting?.maxCapableCostUsd,
+      },
       maxNarrationNudges: config.agent.maxNarrationNudges,
       maxFinishGateNudges: config.agent.maxFinishGateNudges,
     }, emitter);

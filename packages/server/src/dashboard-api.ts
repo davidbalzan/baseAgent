@@ -145,7 +145,7 @@ export function createDashboardApi(deps: DashboardApiDeps) {
       if (exists) {
         try { content = readFileSync(filePath, "utf-8"); } catch { content = ""; }
       }
-      return { name: mf.filename, label: mf.name, description: mf.description, exists, content };
+      return { name: mf.filename, label: mf.name, description: mf.description, perUser: mf.perUser, exists, content };
     });
     return c.json({ files });
   });

@@ -16,6 +16,9 @@ export const TracePhaseSchema = z.enum([
   "reflection_pre",
   "reflection_post",
   "reflection_session",
+  "plan",
+  "verify",
+  "replan",
 ]);
 
 export const TraceEventSchema = z.object({

@@ -3,10 +3,18 @@ import { TaskStore, type ScheduledTask } from "./task-store.js";
 
 const log = createLogger("scheduler");
 
+export interface SchedulerStats {
+  lastTickAt: string | null;
+  tickCount: number;
+  isRunning: boolean;
+  tasksDue: number;
+}
+
 export interface TaskScheduler {
   start(): void;
   stop(): void;
   tick(): Promise<void>;
+  getStats(): SchedulerStats;
 }
 
 export interface TaskSchedulerDeps {
@@ -40,6 +48,8 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
+  let lastTickAt: string | null = null;
+  let tickCount = 0;
 
   async function tick(): Promise<void> {
     if (running) {
@@ -48,6 +58,8 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
     }
 
     running = true;
+    lastTickAt = new Date().toISOString();
+    tickCount++;
 
     try {
       const due = store.getDue(new Date());
@@ -65,20 +77,33 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
             channelId: task.channelId ?? "scheduler:internal",
           });
 
-          store.updateStatus(task.id, "completed");
+          store.update(task.id, {
+            status: "completed",
+            completedAt: new Date().toISOString(),
+          });
           const output = result.output;
           log.log(`Task ${task.id.slice(0, 8)}… completed — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
 
+          // Delivery phase — tracked separately from execution
           if (task.channelId && sendProactiveMessage) {
             try {
               await sendProactiveMessage(task.channelId, output);
-              log.log(`Sent result to ${task.channelId}`);
+              store.update(task.id, { deliveryStatus: "delivered" });
+              log.log(`Delivered result to ${task.channelId}`);
             } catch (err) {
-              log.error(`Failed to send proactive message: ${err}`);
+              store.update(task.id, { deliveryStatus: "failed", error: String(err) });
+              log.error(`Delivery failed for task ${task.id.slice(0, 8)}… to ${task.channelId}: ${err}`);
             }
+          } else {
+            store.update(task.id, { deliveryStatus: "skipped" });
+            if (!task.channelId) log.log(`Task ${task.id.slice(0, 8)}… has no channelId — delivery skipped`);
+            else if (!sendProactiveMessage) log.log(`No sendProactiveMessage available — delivery skipped`);
           }
         } catch (err) {
-          store.updateStatus(task.id, "failed");
+          store.update(task.id, {
+            status: "failed",
+            error: String(err),
+          });
           log.error(`Task ${task.id.slice(0, 8)}… failed: ${err}`);
         }
       }
@@ -102,5 +127,13 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
       log.log("Scheduler stopped");
     },
     tick,
+    getStats(): SchedulerStats {
+      return {
+        lastTickAt,
+        tickCount,
+        isRunning: running,
+        tasksDue: store.getDue(new Date()).length,
+      };
+    },
   };
 }

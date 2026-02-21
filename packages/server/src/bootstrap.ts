@@ -252,6 +252,12 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   const traceRepo = new TraceRepository(db);
   const messageRepo = new MessageRepository(db);
 
+  // Clean up sessions stuck in `pending` from a previous crash or hung model call.
+  const staleCount = sessionRepo.markStalePendingAsFailed();
+  if (staleCount > 0) {
+    serverLog.warn(`Marked ${staleCount} stale pending session(s) as failed on startup`);
+  }
+
   const governancePolicy: GovernancePolicy = {
     read: config.governance?.read ?? "auto-allow",
     write: config.governance?.write ?? "confirm",

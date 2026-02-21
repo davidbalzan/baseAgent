@@ -67,8 +67,8 @@ export {
 } from "./loop/injection-defense.js";
 
 // Logger
-export { createLogger } from "./logger.js";
-export type { Logger } from "./logger.js";
+export { createLogger, getRecentLogs } from "./logger.js";
+export type { Logger, LogEntry } from "./logger.js";
 
 // Plugin system
 export type {

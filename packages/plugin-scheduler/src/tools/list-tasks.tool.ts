@@ -19,7 +19,9 @@ export function createListTasksTool(store: TaskStore): ToolDefinition {
         const relative = at.getTime() > Date.now()
           ? `in ${Math.round((at.getTime() - Date.now()) / 60_000)} min`
           : "overdue";
-        return `- [${t.status}] ${t.task} (id: ${t.id.slice(0, 8)}…, at: ${t.executeAt}, ${relative}${t.channelId ? `, channel: ${t.channelId}` : ""})`;
+        const delivery = t.deliveryStatus ? `/${t.deliveryStatus}` : "";
+        const errorSuffix = t.error ? `, error: ${t.error}` : "";
+        return `- [${t.status}${delivery}] ${t.task} (id: ${t.id.slice(0, 8)}…, at: ${t.executeAt}, ${relative}${t.channelId ? `, channel: ${t.channelId}` : ""}${errorSuffix})`;
       });
 
       return lines.join("\n");

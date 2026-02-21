@@ -8,6 +8,9 @@ export interface ScheduledTask {
   channelId?: string;
   createdAt: string;
   status: "pending" | "running" | "completed" | "failed";
+  deliveryStatus?: "pending" | "delivered" | "failed" | "skipped";
+  error?: string;
+  completedAt?: string;
 }
 
 export class TaskStore {
@@ -68,5 +71,34 @@ export class TaskStore {
     tasks.splice(idx, 1);
     this.write(tasks);
     return true;
+  }
+
+  update(id: string, partial: Partial<Omit<ScheduledTask, "id">>): boolean {
+    const tasks = this.read();
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return false;
+    Object.assign(task, partial);
+    this.write(tasks);
+    return true;
+  }
+
+  markStaleRunningAsFailed(): number {
+    const tasks = this.read();
+    let count = 0;
+    for (const t of tasks) {
+      if (t.status === "running") {
+        t.status = "failed";
+        t.error = "Marked stale on startup (was still running)";
+        count++;
+      }
+    }
+    if (count > 0) this.write(tasks);
+    return count;
+  }
+
+  getRecent(limit: number = 10): ScheduledTask[] {
+    return this.read()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit);
   }
 }

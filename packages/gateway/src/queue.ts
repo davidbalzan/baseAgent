@@ -1,5 +1,8 @@
 import type { HandleMessageFn, IncomingMessage, StreamCallbacks } from "./adapter.js";
 
+/** Default safety timeout: 5 minutes. Protects against hung model calls. */
+const DEFAULT_HANDLER_TIMEOUT_MS = 5 * 60 * 1000;
+
 interface QueueEntry {
   message: IncomingMessage;
   stream: StreamCallbacks;
@@ -7,7 +10,18 @@ interface QueueEntry {
   reject: (err: unknown) => void;
 }
 
-export function createQueuedHandler(handler: HandleMessageFn): HandleMessageFn {
+export interface QueuedHandlerOptions {
+  /** Maximum time (ms) a handler may run before it is force-resolved.
+   *  Prevents a hung model call from permanently blocking the channel queue.
+   *  Default: 300 000 (5 min). */
+  handlerTimeoutMs?: number;
+}
+
+export function createQueuedHandler(
+  handler: HandleMessageFn,
+  options?: QueuedHandlerOptions,
+): HandleMessageFn {
+  const handlerTimeoutMs = options?.handlerTimeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS;
   const queues = new Map<string, QueueEntry[]>();
   const processing = new Set<string>();
 
@@ -24,7 +38,17 @@ export function createQueuedHandler(handler: HandleMessageFn): HandleMessageFn {
     const entry = queue.shift()!;
 
     try {
-      await handler(entry.message, entry.stream);
+      // Safety timeout: if the handler hangs (e.g. model call ignores abort signal),
+      // force-resolve after handlerTimeoutMs so the channel queue isn't blocked forever.
+      await Promise.race([
+        handler(entry.message, entry.stream),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Queue handler timed out after ${handlerTimeoutMs}ms`)),
+            handlerTimeoutMs,
+          ),
+        ),
+      ]);
       entry.resolve();
     } catch (err) {
       entry.reject(err);

@@ -459,6 +459,12 @@ body::before {
 .trace-event[data-phase="compaction"] .trace-event-dot { border-color: var(--text-2); background: var(--text-2); }
 .trace-event[data-phase="observe"] .trace-event-dot { border-color: var(--text-2); }
 .trace-event[data-phase="model_fallback"] .trace-event-dot { border-color: var(--orange); background: var(--orange); }
+.trace-event[data-phase="plan"] .trace-event-dot { border-color: var(--violet); background: transparent; }
+.trace-event[data-phase="verify"] .trace-event-dot { border-color: var(--cyan); background: transparent; }
+.trace-event[data-phase="replan"] .trace-event-dot { border-color: var(--orange); background: transparent; }
+.trace-event[data-phase="reflection_pre"] .trace-event-dot { border-color: var(--blue); background: transparent; }
+.trace-event[data-phase="reflection_post"] .trace-event-dot { border-color: var(--green); background: transparent; }
+.trace-event[data-phase="reflection_session"] .trace-event-dot { border-color: var(--accent); background: transparent; }
 
 .trace-event-card {
   background: var(--bg-1);
@@ -488,6 +494,12 @@ body::before {
 .trace-event[data-phase="compaction"] .trace-phase { color: var(--text-2); }
 .trace-event[data-phase="observe"] .trace-phase { color: var(--text-2); }
 .trace-event[data-phase="model_fallback"] .trace-phase { color: var(--orange); }
+.trace-event[data-phase="plan"] .trace-phase { color: var(--violet); }
+.trace-event[data-phase="verify"] .trace-phase { color: var(--cyan); }
+.trace-event[data-phase="replan"] .trace-phase { color: var(--orange); }
+.trace-event[data-phase="reflection_pre"] .trace-phase { color: var(--blue); }
+.trace-event[data-phase="reflection_post"] .trace-phase { color: var(--green); }
+.trace-event[data-phase="reflection_session"] .trace-phase { color: var(--accent); }
 
 .trace-iter { font-family: var(--font-mono); font-size: 10px; color: var(--text-2); padding: 1px 5px; background: var(--bg-2); border-radius: 3px; }
 .trace-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-2); margin-left: auto; }
@@ -679,6 +691,12 @@ body::before {
 .live-event-msg.phase-finish { color: var(--green); }
 .live-event-msg.phase-error { color: var(--red); }
 .live-event-msg.phase-session_completed { color: var(--text-1); }
+.live-event-msg.phase-plan { color: var(--violet); }
+.live-event-msg.phase-verify { color: var(--cyan); }
+.live-event-msg.phase-replan { color: var(--orange); }
+.live-event-msg.phase-reflection_pre { color: var(--blue); }
+.live-event-msg.phase-reflection_post { color: var(--green); }
+.live-event-msg.phase-reflection_session { color: var(--accent); }
 
 /* ─── MEMORY PANEL ─── */
 .memory-panel {
@@ -745,9 +763,24 @@ body::before {
   min-height: 180px;
   max-height: 420px;
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .memory-card:hover { border-color: var(--border-active); }
+.memory-card.editing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim), 0 8px 32px rgba(0,0,0,.25);
+  max-height: 600px;
+}
+.memory-card.unsaved .memory-card-name::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--orange);
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 .memory-card-header {
   padding: 10px 13px 8px;
@@ -765,10 +798,42 @@ body::before {
   color: var(--text-0);
 }
 
+.memory-card-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+.memory-card-badge.writable {
+  color: var(--green);
+  border-color: rgba(79,255,143,.25);
+  background: rgba(79,255,143,.08);
+}
+.memory-card-badge.readonly {
+  color: var(--text-2);
+  border-color: var(--border);
+  background: transparent;
+}
+
 .memory-card-desc {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-2);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-card-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  white-space: nowrap;
 }
 
 .memory-card-actions { margin-left: auto; display: flex; gap: 6px; }
@@ -787,6 +852,23 @@ body::before {
 .mem-btn:hover { color: var(--text-1); border-color: var(--border-active); }
 .mem-btn.primary { border-color: var(--accent); color: var(--accent); }
 .mem-btn.primary:hover { background: var(--accent-dim); }
+.mem-btn.saving {
+  pointer-events: none;
+  opacity: 0.6;
+}
+.mem-btn.saving::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  margin-left: 5px;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .memory-card-content {
   flex: 1;
@@ -810,12 +892,13 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  animation: fadeUp 0.15s var(--ease);
 }
 
 .mem-textarea {
   width: 100%;
-  min-height: 100px;
-  max-height: 240px;
+  min-height: 140px;
+  max-height: 320px;
   padding: 8px 10px;
   font-family: var(--font-mono);
   font-size: 12px;
@@ -827,18 +910,47 @@ body::before {
   resize: vertical;
   outline: none;
   transition: border-color 0.2s;
+  tab-size: 2;
 }
 .mem-textarea:focus { border-color: var(--accent); }
 
-.mem-editor-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.mem-editor-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mem-editor-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  flex: 1;
+}
+.mem-editor-hint kbd {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+}
 
 .mem-status {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--green);
+  display: flex;
+  align-items: center;
+  gap: 4px;
   transition: opacity 0.5s;
 }
 .mem-status.hidden { opacity: 0; }
+.mem-char-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  margin-left: auto;
+  margin-right: 6px;
+}
 
 /* ─── COSTS PANEL ─── */
 .costs-panel {
@@ -1194,7 +1306,8 @@ body::before {
     <div class="memory-header">
       <div class="memory-header-title">Memory Files</div>
       <span class="memory-subtitle">workspace/</span>
-      <button class="memory-reload-btn" onclick="loadMemory()">Reload</button>
+      <span class="memory-subtitle" id="memory-file-count"></span>
+      <button class="memory-reload-btn" onclick="loadMemory()">&#x21BB; Reload</button>
     </div>
     <div class="memory-grid" id="memory-grid">
       <div class="loading" style="grid-column:1/-1"><div class="loading-spinner"></div></div>
@@ -1364,6 +1477,7 @@ async function selectSession(id) {
 function renderDetail(session, traces) {
   const iterations = getIterations(traces);
   const inputDisplay = stripPromptPrefix(session.input || '');
+  const reflectionSummary = getReflectionSummary(traces);
 
   const mobileBack = `<button class="mobile-back-btn" onclick="closeMobileDetail()">← Back</button>`;
 
@@ -1391,6 +1505,8 @@ function renderDetail(session, traces) {
         <div class="stat-card"><div class="stat-label">Prompt</div><div class="stat-value">${formatNumber(session.promptTokens || 0)}</div></div>
         <div class="stat-card"><div class="stat-label">Completion</div><div class="stat-value">${formatNumber(session.completionTokens || 0)}</div></div>
         <div class="stat-card"><div class="stat-label">Cost</div><div class="stat-value accent">$${(session.totalCostUsd || 0).toFixed(4)}</div></div>
+        ${reflectionSummary ? `<div class="stat-card"><div class="stat-label">Reflection Cost</div><div class="stat-value">$${Number(reflectionSummary.estimatedCostUsd || 0).toFixed(6)}</div></div>` : ''}
+        ${reflectionSummary ? `<div class="stat-card"><div class="stat-label">Refl Tokens</div><div class="stat-value">${formatNumber(Number(reflectionSummary.estimatedPromptOverheadTokens || 0))}</div></div>` : ''}
       </div>
 
       ${iterations.length > 1 ? `
@@ -1481,6 +1597,23 @@ function renderTraceBody(t) {
       return `Tokens before: ${d.promptTokensBefore || '?'}\nSummary length: ${d.summaryLength || '?'} chars`;
     case 'observe':
       return `Processed ${d.toolResultCount || 0} tool result${(d.toolResultCount || 0) !== 1 ? 's' : ''}`;
+    case 'plan':
+      return `Planned ${d.toolCount || 0} tool call${(d.toolCount || 0) === 1 ? '' : 's'}${Array.isArray(d.toolNames) && d.toolNames.length ? `\n${escapeHtml(d.toolNames.join(', '))}` : ''}`;
+    case 'verify':
+      return `Verified ${d.toolCount || 0} result${(d.toolCount || 0) === 1 ? '' : 's'}\nSuccess: ${d.successCount || 0}  Error: ${d.errorCount || 0}`;
+    case 'replan':
+      return `Replan reason: ${escapeHtml(String(d.reason || 'unknown'))}${Array.isArray(d.failedToolNames) && d.failedToolNames.length ? `\nFailed tools: ${escapeHtml(d.failedToolNames.join(', '))}` : ''}`;
+    case 'reflection_pre':
+      return `Tool: ${escapeHtml(friendlyTool(d.toolName))}\nRisk: ${escapeHtml(String(d.risk || 'low'))}${d.recommendation ? `\n${escapeHtml(String(d.recommendation))}` : ''}`;
+    case 'reflection_post':
+      return `Tool: ${escapeHtml(friendlyTool(d.toolName))}\nOutcome: ${escapeHtml(String(d.outcome || 'ok'))}${d.recommendation ? `\n${escapeHtml(String(d.recommendation))}` : ''}`;
+    case 'reflection_session':
+      return [
+        `Pre: ${d.preChecks || 0}  Post: ${d.postChecks || 0}`,
+        `Blocked: ${d.blockedCalls || 0}  High risk: ${d.highRiskCalls || 0}`,
+        `Nudges: ${d.nudgesInjected || 0}`,
+        `Overhead: ${d.estimatedPromptOverheadTokens || 0} tok / $${Number(d.estimatedCostUsd || 0).toFixed(6)}`,
+      ].join('\n');
     default:
       return escapeHtml(JSON.stringify(d, null, 2));
   }
@@ -1651,6 +1784,12 @@ function formatLiveTraceMsg(ev) {
     case 'error': return `✗ ${escapeHtml(d.error || 'error')}`;
     case 'compaction': return `⟳ Compacted context`;
     case 'governance': return `🔒 ${escapeHtml(JSON.stringify(d).slice(0, 60))}`;
+    case 'plan': return `🧭 Plan: ${d.toolCount || 0} tool call${(d.toolCount || 0) === 1 ? '' : 's'}`;
+    case 'verify': return `✅ Verify: ${d.successCount || 0} ok, ${d.errorCount || 0} error`;
+    case 'replan': return `↻ Replan: ${escapeHtml(String(d.reason || 'adjustment'))}`;
+    case 'reflection_pre': return `🔍 Pre-check ${escapeHtml(friendlyTool(d.toolName))}: ${escapeHtml(String(d.risk || 'low'))}`;
+    case 'reflection_post': return `🧪 Post-check ${escapeHtml(friendlyTool(d.toolName))}: ${escapeHtml(String(d.outcome || 'ok'))}`;
+    case 'reflection_session': return `📊 Reflection overhead: ${d.estimatedPromptOverheadTokens || 0} tok / $${Number(d.estimatedCostUsd || 0).toFixed(6)}`;
     default: return escapeHtml(formatPhase(ev.phase));
   }
 }
@@ -1680,16 +1819,29 @@ async function loadMemory() {
 }
 
 function renderMemory(files) {
+  // Update file count in header
+  const countEl = document.getElementById('memory-file-count');
+  if (countEl) countEl.textContent = files.length + ' files';
+
   $memoryGrid.innerHTML = files.map(f => {
     const contentHtml = f.content
       ? `<div class="memory-card-content">${escapeHtml(f.content)}</div>`
       : `<div class="memory-card-content memory-card-empty">(empty)</div>`;
 
+    const badge = f.perUser
+      ? '<span class="memory-card-badge writable">per-user</span>'
+      : '<span class="memory-card-badge readonly">shared</span>';
+
+    const charCount = f.content ? f.content.length : 0;
+    const meta = `<span class="memory-card-meta">${charCount > 0 ? formatNumber(charCount) + ' chars' : 'empty'}</span>`;
+
     return `
       <div class="memory-card" id="memcard-${f.name}">
         <div class="memory-card-header">
-          <span class="memory-card-name">${escapeHtml(f.name)}</span>
+          <span class="memory-card-name">${escapeHtml(f.label || f.name)}</span>
+          ${badge}
           <span class="memory-card-desc">${escapeHtml(f.description)}</span>
+          ${meta}
           <div class="memory-card-actions">
             <button class="mem-btn primary" onclick="startEdit('${f.name}', ${JSON.stringify(f.content).replace(/'/g, "\\'")})" title="Edit file">Edit</button>
           </div>
@@ -1698,9 +1850,11 @@ function renderMemory(files) {
         <div class="memory-card-editor" id="memeditor-${f.name}" style="display:none">
           <textarea class="mem-textarea" id="memta-${f.name}" spellcheck="false"></textarea>
           <div class="mem-editor-actions">
-            <span class="mem-status hidden" id="memstatus-${f.name}">Saved</span>
+            <span class="mem-editor-hint"><kbd>⌘S</kbd> save &middot; <kbd>Esc</kbd> cancel</span>
+            <span class="mem-char-count" id="memcount-${f.name}"></span>
+            <span class="mem-status hidden" id="memstatus-${f.name}">&#x2713; Saved</span>
             <button class="mem-btn" onclick="cancelEdit('${f.name}')">Cancel</button>
-            <button class="mem-btn primary" onclick="saveMemory('${f.name}')">Save</button>
+            <button class="mem-btn primary" id="memsave-${f.name}" onclick="saveMemory('${f.name}')">Save</button>
           </div>
         </div>
       </div>
@@ -1709,23 +1863,61 @@ function renderMemory(files) {
 }
 
 function startEdit(fileName, content) {
+  const card = document.getElementById(`memcard-${fileName}`);
   const editor = document.getElementById(`memeditor-${fileName}`);
   const ta = document.getElementById(`memta-${fileName}`);
+  const countEl = document.getElementById(`memcount-${fileName}`);
   if (!editor || !ta) return;
+
+  // Store original content for dirty tracking
+  ta.dataset.original = content;
   ta.value = content;
   editor.style.display = 'flex';
+  if (card) card.classList.add('editing');
+
+  // Character count
+  if (countEl) countEl.textContent = content.length + ' chars';
+  ta.addEventListener('input', function onInput() {
+    if (countEl) countEl.textContent = ta.value.length + ' chars';
+    // Unsaved indicator
+    if (card) {
+      if (ta.value !== ta.dataset.original) card.classList.add('unsaved');
+      else card.classList.remove('unsaved');
+    }
+  });
+
+  // Keyboard shortcuts (Cmd+S / Ctrl+S to save, Escape to cancel)
+  ta.addEventListener('keydown', function onKey(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      saveMemory(fileName);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit(fileName);
+    }
+  });
+
   ta.focus();
 }
 
 function cancelEdit(fileName) {
+  const card = document.getElementById(`memcard-${fileName}`);
   const editor = document.getElementById(`memeditor-${fileName}`);
   if (editor) editor.style.display = 'none';
+  if (card) {
+    card.classList.remove('editing');
+    card.classList.remove('unsaved');
+  }
 }
 
 async function saveMemory(fileName) {
   const ta = document.getElementById(`memta-${fileName}`);
   const statusEl = document.getElementById(`memstatus-${fileName}`);
+  const saveBtn = document.getElementById(`memsave-${fileName}`);
   if (!ta) return;
+
+  // Show saving state
+  if (saveBtn) saveBtn.classList.add('saving');
 
   try {
     const res = await fetch(`/api/memory/${encodeURIComponent(fileName)}`, {
@@ -1735,22 +1927,46 @@ async function saveMemory(fileName) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
-      alert(`Save failed: ${err.error || res.statusText}`);
+      if (statusEl) {
+        statusEl.textContent = '\u2717 ' + (err.error || res.statusText);
+        statusEl.style.color = 'var(--red)';
+        statusEl.classList.remove('hidden');
+        setTimeout(() => { statusEl.classList.add('hidden'); statusEl.style.color = ''; }, 3000);
+      }
       return;
     }
-    // Update the content display
+    // Update original content for dirty tracking
+    ta.dataset.original = ta.value;
+
+    // Update the content display + meta
     const card = document.getElementById(`memcard-${fileName}`);
     if (card) {
       const contentEl = card.querySelector('.memory-card-content');
-      if (contentEl) contentEl.textContent = ta.value;
+      if (contentEl) {
+        contentEl.textContent = ta.value;
+        contentEl.classList.toggle('memory-card-empty', !ta.value);
+      }
+      const metaEl = card.querySelector('.memory-card-meta');
+      if (metaEl) metaEl.textContent = ta.value.length > 0 ? formatNumber(ta.value.length) + ' chars' : 'empty';
+      card.classList.remove('unsaved');
     }
+
     cancelEdit(fileName);
     if (statusEl) {
+      statusEl.textContent = '\u2713 Saved';
+      statusEl.style.color = '';
       statusEl.classList.remove('hidden');
       setTimeout(() => statusEl.classList.add('hidden'), 2000);
     }
   } catch (e) {
-    alert(`Save failed: ${e.message}`);
+    if (statusEl) {
+      statusEl.textContent = '\u2717 ' + e.message;
+      statusEl.style.color = 'var(--red)';
+      statusEl.classList.remove('hidden');
+      setTimeout(() => { statusEl.classList.add('hidden'); statusEl.style.color = ''; }, 3000);
+    }
+  } finally {
+    if (saveBtn) saveBtn.classList.remove('saving');
   }
 }
 
@@ -2034,6 +2250,15 @@ function navigateSession(dir) {
 function getIterations(traces) {
   const set = new Set(traces.map(t => t.iteration));
   return [...set].sort((a, b) => a - b);
+}
+
+function getReflectionSummary(traces) {
+  if (!Array.isArray(traces)) return null;
+  for (let i = traces.length - 1; i >= 0; i--) {
+    const t = traces[i];
+    if (t && t.phase === 'reflection_session' && t.data) return t.data;
+  }
+  return null;
 }
 
 function formatPhase(phase) { return phase.replace(/_/g, ' '); }

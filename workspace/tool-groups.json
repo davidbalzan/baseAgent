@@ -1,0 +1,69 @@
+{
+  "calendar": [
+    "schedule",
+    "task",
+    "meeting",
+    "reminder",
+    "calendar",
+    "todo",
+    "appointment",
+    "deadline",
+    "plan",
+    "organize"
+  ],
+  "data": [
+    "fetch",
+    "web",
+    "search",
+    "api",
+    "database",
+    "query",
+    "analyze",
+    "report",
+    "stats",
+    "data"
+  ],
+  "development": [
+    "git",
+    "code",
+    "test",
+    "build",
+    "deploy",
+    "fix",
+    "debug",
+    "refactor",
+    "commit",
+    "branch",
+    "pull",
+    "push",
+    "merge"
+  ],
+  "system": [
+    "server",
+    "storage",
+    "process",
+    "kill",
+    "restart",
+    "install",
+    "update",
+    "config",
+    "settings",
+    "environment"
+  ],
+  "research": [
+    "research",
+    "analyze",
+    "study",
+    "investigate",
+    "explore",
+    "compare",
+    "review",
+    "evaluate",
+    "summarize",
+    "document",
+    "read",
+    "fetch",
+    "web",
+    "search"
+  ]
+}

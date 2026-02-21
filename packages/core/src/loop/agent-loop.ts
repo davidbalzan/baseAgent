@@ -48,6 +48,14 @@ export interface AgentLoopOptions {
     persistToUserMemory?: boolean;
     finishGate?: boolean;
   };
+  stageRouting?: {
+    enabled?: boolean;
+    capableModel?: LanguageModel;
+    capablePricing?: ModelPricing;
+    escalationConsecutiveErrorIterations?: number;
+    maxCapableIterations?: number;
+    maxCapableCostUsd?: number;
+  };
   /** Max narration nudges before the loop stops correcting planning-without-acting. Default: 2. */
   maxNarrationNudges?: number;
   /** Max finish-gate nudges before accepting a weak completion. Default: 1. */
@@ -130,6 +138,7 @@ export async function runAgentLoop(
     initialToolMessageMeta,
     initialState,
     reflection,
+    stageRouting,
     maxNarrationNudges: configMaxNarrationNudges,
     maxFinishGateNudges: configMaxFinishGateNudges,
   } = options;
@@ -172,6 +181,15 @@ export async function runAgentLoop(
   const maxReflectionNudgesPerIteration = reflection?.maxNudgesPerIteration ?? 1;
   const reflectionSessionSummaryEnabled = reflection?.sessionSummary ?? true;
   const reflectionFinishGateEnabled = reflection?.finishGate ?? true;
+  const stageRoutingEnabled = stageRouting?.enabled ?? false;
+  const stageRoutingCapableModel = stageRouting?.capableModel;
+  const stageRoutingCapablePricing = stageRouting?.capablePricing;
+  const stageRoutingEscalationThreshold = stageRouting?.escalationConsecutiveErrorIterations ?? 2;
+  const stageRoutingMaxCapableIterations = stageRouting?.maxCapableIterations ?? 2;
+  const stageRoutingMaxCapableCostUsd = stageRouting?.maxCapableCostUsd ?? 0.2;
+  let stageRoutingConsecutiveErrorIterations = 0;
+  let stageRoutingCapableIterationsUsed = 0;
+  let stageRoutingCapableCostUsd = 0;
   let finishGateNudges = 0;
   const MAX_FINISH_GATE_NUDGES = configMaxFinishGateNudges ?? 1;
   let totalToolCalls = 0;
@@ -195,8 +213,33 @@ export async function runAgentLoop(
     while (state.iteration < maxIterations && state.estimatedCostUsd < costCapUsd) {
       state.iteration++;
 
+      const shouldUseCapableModel =
+        stageRoutingEnabled &&
+        !!stageRoutingCapableModel &&
+        stageRoutingConsecutiveErrorIterations >= stageRoutingEscalationThreshold &&
+        stageRoutingCapableIterationsUsed < stageRoutingMaxCapableIterations &&
+        stageRoutingCapableCostUsd < stageRoutingMaxCapableCostUsd;
+
+      const iterationModel = shouldUseCapableModel && stageRoutingCapableModel
+        ? stageRoutingCapableModel
+        : model;
+      const iterationPricing = shouldUseCapableModel
+        ? (stageRoutingCapablePricing ?? pricing)
+        : pricing;
+
+      if (shouldUseCapableModel) {
+        emitTrace(loopEmitter, sessionId, "model_fallback", state.iteration, {
+          reason: "stage_escalation",
+          trigger: "consecutive_error_iterations",
+          consecutiveErrorIterations: stageRoutingConsecutiveErrorIterations,
+          capableIterationsUsed: stageRoutingCapableIterationsUsed,
+          capableCostUsd: stageRoutingCapableCostUsd,
+          selectedModelId: iterationModel.modelId,
+        });
+      }
+
       const response = streamText({
-        model,
+        model: iterationModel,
         messages,
         tools: sdkTools,
         abortSignal: abortController.signal,
@@ -238,7 +281,12 @@ export async function runAgentLoop(
       const reasoningTokens = (usage as Record<string, unknown>).outputTokenDetails
         ? ((usage as Record<string, unknown>).outputTokenDetails as { reasoningTokens?: number }).reasoningTokens
         : undefined;
-      updateUsage(state, usage.promptTokens, usage.completionTokens, pricing);
+      const previousCost = state.estimatedCostUsd;
+      updateUsage(state, usage.promptTokens, usage.completionTokens, iterationPricing);
+      if (shouldUseCapableModel) {
+        stageRoutingCapableIterationsUsed += 1;
+        stageRoutingCapableCostUsd += Math.max(0, state.estimatedCostUsd - previousCost);
+      }
 
       emitTrace(loopEmitter, sessionId, "reason", state.iteration, {
         text: iterationText,
@@ -467,11 +515,21 @@ export async function runAgentLoop(
         .map((r) => ({ toolCallId: r.toolCallId, toolName: r.toolName, isError: r.result.startsWith("Error:") }));
       const iterationErrorCount = toolCallResults.filter((r) => r.isError).length;
       const iterationSuccessCount = toolCallResults.length - iterationErrorCount;
+      if (toolCallResults.length > 0) {
+        stageRoutingConsecutiveErrorIterations = iterationErrorCount > 0
+          ? stageRoutingConsecutiveErrorIterations + 1
+          : 0;
+      }
       emitTrace(loopEmitter, sessionId, "verify", state.iteration, {
         toolCount: toolCallResults.length,
         successCount: iterationSuccessCount,
         errorCount: iterationErrorCount,
         toolStats,
+        stageRouting: {
+          consecutiveErrorIterations: stageRoutingConsecutiveErrorIterations,
+          capableIterationsUsed: stageRoutingCapableIterationsUsed,
+          capableCostUsd: stageRoutingCapableCostUsd,
+        },
       });
 
       if (iterationErrorCount > 0) {

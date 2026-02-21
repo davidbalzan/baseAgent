@@ -19,7 +19,8 @@ export const chatDashboardTab: DashboardTab = {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .chat-header-title {
@@ -60,18 +61,18 @@ export const chatDashboardTab: DashboardTab = {
 }
 
 .chat-clear-btn {
-  margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-2);
   background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   cursor: pointer;
   transition: all 0.15s;
 }
 .chat-clear-btn:hover { color: var(--text-1); border-color: var(--border-active); }
+.chat-clear-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .chat-session-select {
   min-width: 220px;
@@ -93,7 +94,7 @@ export const chatDashboardTab: DashboardTab = {
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   scrollbar-width: thin;
   scrollbar-color: var(--bg-3) transparent;
 }
@@ -108,6 +109,15 @@ export const chatDashboardTab: DashboardTab = {
   word-break: break-word;
   white-space: pre-wrap;
   animation: fadeUp 0.2s var(--ease);
+  position: relative;
+}
+
+.chat-msg-time {
+  display: block;
+  font-size: 9px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+  opacity: 0.7;
 }
 
 .chat-msg.user {
@@ -124,6 +134,34 @@ export const chatDashboardTab: DashboardTab = {
   border: 1px solid var(--border);
 }
 
+/* Lightweight markdown rendering */
+.chat-msg.assistant strong { color: var(--text-0); font-weight: 700; }
+.chat-msg.assistant em { font-style: italic; color: var(--text-1); }
+.chat-msg.assistant code {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 11px;
+}
+.chat-msg.assistant pre {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+  white-space: pre;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.chat-msg.assistant pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
 .chat-msg.tool-call {
   align-self: flex-start;
   background: rgba(79,143,255,.06);
@@ -131,6 +169,32 @@ export const chatDashboardTab: DashboardTab = {
   font-size: 10px;
   padding: 5px 10px;
   border: 1px solid rgba(79,143,255,.12);
+}
+
+/* Typing indicator */
+.chat-typing {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  animation: fadeUp 0.2s var(--ease);
+}
+.chat-typing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-2);
+  animation: chatTypingPulse 1.4s infinite ease-in-out;
+}
+.chat-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.chat-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes chatTypingPulse {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
 }
 
 .chat-activity-toasts {
@@ -207,38 +271,41 @@ export const chatDashboardTab: DashboardTab = {
 .chat-confirm-btns {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .chat-confirm-btn {
   font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 4px 14px;
-  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 20px;
+  border-radius: 5px;
   cursor: pointer;
   border: 1px solid;
   transition: all 0.15s;
+  letter-spacing: 0.02em;
 }
 .chat-confirm-btn.approve {
   background: rgba(79,255,143,.1);
   color: var(--green);
   border-color: rgba(79,255,143,.3);
 }
-.chat-confirm-btn.approve:hover { background: rgba(79,255,143,.2); }
+.chat-confirm-btn.approve:hover { background: rgba(79,255,143,.22); }
 .chat-confirm-btn.deny {
   background: rgba(255,79,106,.1);
   color: var(--red);
   border-color: rgba(255,79,106,.3);
 }
-.chat-confirm-btn.deny:hover { background: rgba(255,79,106,.2); }
+.chat-confirm-btn.deny:hover { background: rgba(255,79,106,.22); }
 
 .chat-input-row {
-  padding: 12px 20px;
+  padding: 14px 20px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-end;
+  background: var(--bg-0);
 }
 
 .chat-textarea {
@@ -249,15 +316,18 @@ export const chatDashboardTab: DashboardTab = {
   color: var(--text-0);
   font-family: var(--font-mono);
   font-size: 12px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   resize: none;
   min-height: 20px;
-  max-height: 120px;
+  max-height: 140px;
   line-height: 1.5;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.chat-textarea:focus { border-color: var(--accent); }
+.chat-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim);
+}
 .chat-textarea::placeholder { color: var(--text-2); }
 
 .chat-send-btn {
@@ -268,13 +338,32 @@ export const chatDashboardTab: DashboardTab = {
   background: var(--accent);
   border: none;
   border-radius: var(--radius);
-  padding: 10px 18px;
+  padding: 10px 20px;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.1s;
   white-space: nowrap;
+  position: relative;
 }
 .chat-send-btn:hover { opacity: 0.85; }
-.chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chat-send-btn:active { transform: scale(0.97); }
+.chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.chat-send-btn.sending {
+  color: transparent;
+}
+.chat-send-btn.sending::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border: 2px solid var(--bg-0);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .chat-empty {
   flex: 1;
@@ -282,10 +371,38 @@ export const chatDashboardTab: DashboardTab = {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   color: var(--text-2);
   font-family: var(--font-mono);
   font-size: 12px;
+  padding: 40px 20px;
+}
+
+.chat-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  opacity: 0.5;
+}
+
+.chat-empty-hint {
+  font-size: 10px;
+  color: var(--text-2);
+  opacity: 0.6;
+}
+.chat-empty-hint kbd {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-family: var(--font-mono);
 }
 
 .chat-steps-wrap {
@@ -440,8 +557,9 @@ export const chatDashboardTab: DashboardTab = {
   </div>
   <div class="chat-messages" id="chat-messages">
     <div class="chat-empty" id="chat-empty">
-      <div style="font-size:24px;opacity:0.3">&#x1F4AC;</div>
+      <div class="chat-empty-icon">&#x1F4AC;</div>
       <div>Send a message to start chatting</div>
+      <div class="chat-empty-hint">Press <kbd>Enter</kbd> to send &middot; <kbd>Shift+Enter</kbd> for new line</div>
     </div>
   </div>
   <div class="chat-activity-toasts" id="chat-activity-toasts"></div>
@@ -460,6 +578,49 @@ var chatSessionCache = [];
 var chatCurrentSessionId = null;
 var chatToolEvents = [];
 var chatToolEventCounter = 0;
+var chatTypingEl = null;
+
+function chatRenderMd(text) {
+  // Lightweight markdown: code blocks, inline code, bold, italic
+  var s = String(text);
+  // Escape HTML first
+  s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Code blocks: \`\`\`lang\\n...\\n\`\`\`
+  s = s.replace(/\`\`\`(\\w*)\\n([\\s\\S]*?)\`\`\`/g, function(_, lang, code) {
+    return '<pre><code>' + code + '</code></pre>';
+  });
+  // Inline code
+  s = s.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+  // Bold
+  s = s.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+  // Italic
+  s = s.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+  return s;
+}
+
+function chatTimeLabel() {
+  var d = new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function showTypingIndicator() {
+  removeTypingIndicator();
+  var container = document.getElementById('chat-messages');
+  if (!container) return;
+  chatTypingEl = document.createElement('div');
+  chatTypingEl.className = 'chat-typing';
+  chatTypingEl.id = 'chat-typing';
+  chatTypingEl.innerHTML = '<div class="chat-typing-dot"></div><div class="chat-typing-dot"></div><div class="chat-typing-dot"></div>';
+  container.appendChild(chatTypingEl);
+  scrollChat();
+}
+
+function removeTypingIndicator() {
+  if (chatTypingEl && chatTypingEl.parentElement) {
+    chatTypingEl.parentElement.removeChild(chatTypingEl);
+  }
+  chatTypingEl = null;
+}
 
 function initChat() {
   if (chatEventSource) { chatEventSource.close(); }
@@ -477,33 +638,40 @@ function initChat() {
     var data = JSON.parse(e.data);
     chatCurrentSessionId = data.sessionId || null;
     resetToolActivity();
+    showTypingIndicator();
   });
 
   chatEventSource.addEventListener('text_delta', function(e) {
     var data = JSON.parse(e.data);
     hideEmpty();
+    removeTypingIndicator();
     if (!chatStreamingEl) {
       chatStreamBuf = '';
-      chatStreamingEl = appendChatMsg('assistant', '');
+      chatStreamingEl = appendChatMsg('assistant', '', true);
     }
     chatStreamBuf += data.delta;
-    chatStreamingEl.textContent = chatStreamBuf;
+    // Render markdown for the streaming content
+    var contentEl = chatStreamingEl.querySelector('.chat-msg-content') || chatStreamingEl;
+    contentEl.innerHTML = chatRenderMd(chatStreamBuf);
     scrollChat();
   });
 
   chatEventSource.addEventListener('text_reset', function() {
     if (chatStreamingEl) {
       chatStreamBuf = '';
-      chatStreamingEl.textContent = '';
+      var contentEl = chatStreamingEl.querySelector('.chat-msg-content') || chatStreamingEl;
+      contentEl.innerHTML = '';
     }
   });
 
   chatEventSource.addEventListener('tool_call', function(e) {
     var data = JSON.parse(e.data);
     hideEmpty();
+    removeTypingIndicator();
     var name = data && data.toolName ? String(data.toolName) : 'tool';
     pushToolActivity('running', name, 'Tool call requested.');
     showToolToast('running', 'Running ' + name, 'Tool call started');
+    showTypingIndicator();
     scrollChat();
   });
 
@@ -512,6 +680,7 @@ function initChat() {
     var sessionId = data.sessionId || chatCurrentSessionId;
     chatStreamingEl = null;
     chatStreamBuf = '';
+    removeTypingIndicator();
     enableChatInput();
     collapseToolActivity();
     if (sessionId) {
@@ -528,7 +697,8 @@ function initChat() {
       pushToolActivity('error', name, err);
       showToolToast('error', name + ' failed', err);
       hideEmpty();
-      appendChatMsg('error', '\u26A0 ' + name + ' failed: ' + err);
+      removeTypingIndicator();
+      appendChatMsg('error', '\\u26A0 ' + name + ' failed: ' + err);
       scrollChat();
       return;
     }
@@ -539,6 +709,7 @@ function initChat() {
   chatEventSource.addEventListener('error_event', function(e) {
     var data = JSON.parse(e.data);
     hideEmpty();
+    removeTypingIndicator();
     appendChatMsg('error', data.message);
     chatStreamingEl = null;
     chatStreamBuf = '';
@@ -552,12 +723,13 @@ function initChat() {
     pushToolActivity('governance', awaitingTool || 'approval', 'Waiting for manual confirmation.');
     showToolToast('governance', 'Approval needed', awaitingTool ? awaitingTool : 'Review request in chat');
     hideEmpty();
+    removeTypingIndicator();
     var el = appendChatMsg('confirmation', data.prompt);
     var btns = document.createElement('div');
     btns.className = 'chat-confirm-btns';
     btns.innerHTML =
-      '<button class="chat-confirm-btn approve" onclick="chatConfirm(this, true)">Approve</button>' +
-      '<button class="chat-confirm-btn deny" onclick="chatConfirm(this, false)">Deny</button>';
+      '<button class="chat-confirm-btn approve" onclick="chatConfirm(this, true)">\\u2713 Approve</button>' +
+      '<button class="chat-confirm-btn deny" onclick="chatConfirm(this, false)">\\u2717 Deny</button>';
     el.appendChild(btns);
     scrollChat();
   });
@@ -565,12 +737,14 @@ function initChat() {
   chatEventSource.addEventListener('proactive', function(e) {
     var data = JSON.parse(e.data);
     hideEmpty();
+    removeTypingIndicator();
     appendChatMsg('proactive', data.text);
     scrollChat();
   });
 
   chatEventSource.onerror = function() {
     setChatStatus('disconnected', 'Disconnected');
+    removeTypingIndicator();
   };
 
   // Wire up keyboard
@@ -584,7 +758,7 @@ function initChat() {
     });
     inp.addEventListener('input', function() {
       this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+      this.style.height = Math.min(this.scrollHeight, 140) + 'px';
     });
   }
 }
@@ -637,7 +811,7 @@ function formatChatSessionLabel(session) {
   var id = String(session.id || '').slice(0, 8);
   var ts = session.createdAt ? new Date(session.createdAt).toLocaleString() : 'Unknown time';
   var status = (session.status || 'unknown').toUpperCase();
-  var input = String(session.input || '').replace(/\s+/g, ' ').trim();
+  var input = String(session.input || '').replace(/\\s+/g, ' ').trim();
   if (input.length > 40) input = input.slice(0, 37) + '...';
   if (!input) input = '(empty input)';
   return '[' + id + '] [' + status + '] ' + ts + ' - ' + input;
@@ -659,7 +833,7 @@ function loadSelectedChatSession() {
   appendChatMsg('tool-call', 'Loaded session ' + String(session.id).slice(0, 8));
   appendChatMsg('user', session.input || '(empty input)');
   if (typeof session.output === 'string' && session.output.length > 0) {
-    appendChatMsg('assistant', session.output);
+    appendChatMsg('assistant', session.output, true);
   } else {
     appendChatMsg('tool-call', 'Session has no final output yet (status: ' + String(session.status || 'unknown') + ')');
   }
@@ -707,7 +881,7 @@ function resumeSelectedChatSession() {
     if (text) {
       appendChatMsg('user', text);
     }
-    appendChatMsg('assistant', data.output || '(no output)');
+    appendChatMsg('assistant', data.output || '(no output)', true);
     if (data.sessionId) {
       renderChatStepsForSession(String(data.sessionId));
       chatCurrentSessionId = String(data.sessionId);
@@ -765,7 +939,7 @@ function traceDetail(t) {
     return toolName + ' -> ' + decision;
   }
   if (t.phase === 'reason' && d.text) {
-    var text = String(d.text).replace(/\s+/g, ' ').trim();
+    var text = String(d.text).replace(/\\s+/g, ' ').trim();
     if (text.length > 90) text = text.slice(0, 87) + '...';
     return text;
   }
@@ -816,12 +990,28 @@ function hideEmpty() {
   if (el) el.style.display = 'none';
 }
 
-function appendChatMsg(cls, text) {
+function appendChatMsg(cls, text, renderMarkdown) {
   var container = document.getElementById('chat-messages');
   if (!container) return null;
   var div = document.createElement('div');
   div.className = 'chat-msg ' + cls;
-  div.textContent = text;
+
+  // Add timestamp
+  var time = document.createElement('span');
+  time.className = 'chat-msg-time';
+  time.textContent = chatTimeLabel();
+  div.appendChild(time);
+
+  // Content element
+  var content = document.createElement('span');
+  content.className = 'chat-msg-content';
+  if (renderMarkdown && cls === 'assistant') {
+    content.innerHTML = chatRenderMd(text);
+  } else {
+    content.textContent = text;
+  }
+  div.appendChild(content);
+
   container.appendChild(div);
   return div;
 }
@@ -950,7 +1140,7 @@ function formatToolEventTime(ts) {
 
 function toolNameFromConfirmationPrompt(prompt) {
   var text = String(prompt || '');
-  var m = text.match(/Tool\s+"([^"]+)"/);
+  var m = text.match(/Tool\\s+"([^"]+)"/);
   return m ? m[1] : '';
 }
 
@@ -962,7 +1152,7 @@ function scrollChat() {
 function enableChatInput() {
   var btn = document.getElementById('chat-send-btn');
   var inp = document.getElementById('chat-input');
-  if (btn) btn.disabled = false;
+  if (btn) { btn.disabled = false; btn.classList.remove('sending'); }
   if (inp) { inp.disabled = false; inp.focus(); }
 }
 
@@ -979,7 +1169,7 @@ function sendChatMessage() {
 
   inp.value = '';
   inp.style.height = 'auto';
-  btn.disabled = true;
+  if (btn) { btn.disabled = true; btn.classList.add('sending'); }
   inp.disabled = true;
 
   fetch('/chat/send', {
@@ -1017,11 +1207,13 @@ function clearChatMessages() {
   if (!el) return;
   el.innerHTML =
     '<div class="chat-empty" id="chat-empty">' +
-      '<div style="font-size:24px;opacity:0.3">&#x1F4AC;</div>' +
+      '<div class="chat-empty-icon">&#x1F4AC;</div>' +
       '<div>Send a message to start chatting</div>' +
+      '<div class="chat-empty-hint">Press <kbd>Enter</kbd> to send &middot; <kbd>Shift+Enter</kbd> for new line</div>' +
     '</div>';
   chatStreamingEl = null;
   chatStreamBuf = '';
+  removeTypingIndicator();
   resetToolActivity();
 }
 `,
