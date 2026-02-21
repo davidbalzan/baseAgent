@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { ToolDefinition } from "@baseagent/core";
-import { resolveWorkspacePath, assertNotProtectedMemoryFile } from "./_utils.js";
+import { resolveWorkspacePath, assertNotProtectedMemoryFile, parseScopedPath } from "./_utils.js";
 
 const parameters = z.object({
   path: z
     .string()
-    .describe("File path relative to the workspace root."),
+    .describe("File path relative to the workspace root. The `project:` prefix is NOT allowed for edits."),
   old_string: z
     .string()
     .describe(
@@ -23,11 +23,18 @@ export function createFileEditTool(workspacePath: string): ToolDefinition<typeof
   return {
     name: "file_edit",
     description:
-      "Replace an exact string match in a file. old_string must appear exactly once. Read the file first.",
+      "Replace an exact string match in a workspace file. old_string must appear exactly once. Read the file first. " +
+      "Note: project root files are read-only — the `project:` prefix is not supported here.",
     parameters,
     permission: "write",
     timeoutMs: 5_000,
     execute: async (args) => {
+      // Block project-scope edits
+      const { scope } = parseScopedPath(args.path);
+      if (scope === "project") {
+        return "Error: project root files are read-only. file_edit only supports workspace paths.";
+      }
+
       const filePath = resolveWorkspacePath(workspacePath, args.path);
       assertNotProtectedMemoryFile(filePath);
 

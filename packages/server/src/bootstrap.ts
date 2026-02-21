@@ -9,7 +9,8 @@ const ROOT_DIR = resolve(__dirname, "..", "..", "..");
 import {
   loadConfig,
   resolveModel,
-  resolveSingleModel,
+  getFallbackModelStatus,
+  resolveModelWithFallbacks,
   LoopEmitter,
   fetchOpenRouterPricing,
   createLogger,
@@ -45,45 +46,17 @@ import {
 import { healthRoute } from "./health.js";
 import { LiveSessionBus } from "./live-stream.js";
 import { runSession, type RunSessionDeps } from "./run-session.js";
-import { createHeartbeatScheduler, type HeartbeatScheduler } from "./heartbeat.js";
-import { createTaskScheduler, type TaskScheduler } from "./scheduler.js";
-import { createTaskStoreFromWorkspace } from "@baseagent/plugin-scheduler";
-import { createWebhookRoute } from "./webhook.js";
 import { createDashboardApi } from "./dashboard-api.js";
 import { SlidingWindowLimiter, createRateLimitMiddleware } from "./rate-limit.js";
 import { loadPlugins } from "./plugins/plugin-loader.js";
 import { resolvePlugins } from "./plugins/resolve-plugins.js";
-import { createBuiltInToolsPlugin } from "./plugins/built-in-tools.plugin.js";
+import { createBuiltInToolsPlugin, createSkillReloader } from "./plugins/built-in-tools.plugin.js";
+import { buildConversationHistory } from "./conversation-history.js";
 import type { LoopState } from "@baseagent/core";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-
-function buildConversationHistory(
-  sessions: Array<{ input: string; output: string | null }>,
-  tokenBudget: number,
-): CoreMessage[] | undefined {
-  const selected: Array<{ input: string; output: string }> = [];
-  let tokensUsed = 0;
-
-  for (const s of sessions) {
-    if (!s.output) continue;
-    const turnTokens = Math.ceil((s.input.length + s.output.length) / 4);
-    if (tokensUsed + turnTokens > tokenBudget) break;
-    selected.push({ input: s.input, output: s.output });
-    tokensUsed += turnTokens;
-  }
-
-  if (selected.length === 0) return undefined;
-
-  const messages: CoreMessage[] = [];
-  for (const s of selected.reverse()) {
-    messages.push({ role: "user", content: s.input });
-    messages.push({ role: "assistant", content: s.output });
-  }
-  return messages;
-}
 
 /**
  * Inject plugin-contributed dashboard tabs into the HTML template.
@@ -97,7 +70,7 @@ function injectPluginTabs(html: string, tabs: DashboardTab[]): string {
     .replace("// __PLUGIN_JS__", "")
     .replace("// __PLUGIN_KEYBOARD_SHORTCUTS__", "");
 
-  const NEXT_KEY = 5; // Built-in tabs use 1-4
+  const NEXT_KEY = 6; // Built-in tabs use 1-5
 
   const tabButtons = tabs.map((t) =>
     `<button class="tab-btn" data-tab="${t.id}" onclick="switchTab('${t.id}')">${t.label}</button>`,
@@ -139,6 +112,112 @@ function injectPluginTabs(html: string, tabs: DashboardTab[]): string {
     .replace("// __PLUGIN_KEYBOARD_SHORTCUTS__", keyboardShortcuts);
 }
 
+function toBaseUrl(url?: string): string {
+  return (url ?? "http://127.0.0.1:4096").replace(/\/+$/, "");
+}
+
+async function isOpenCodeAvailable(baseUrl?: string): Promise<boolean> {
+  const healthUrl = `${toBaseUrl(baseUrl)}/session/status`;
+  try {
+    const response = await fetch(healthUrl);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeFallbacks(
+  fallbacks: AppConfig["llm"]["fallbackModels"] | undefined,
+): NonNullable<AppConfig["llm"]["fallbackModels"]> {
+  return (fallbacks ?? []).filter((fb) => fb.provider !== "opencode");
+}
+
+function copyFallbackPricingToCapable(
+  target: NonNullable<AppConfig["llm"]["capableModel"]>,
+  fallback: { costPerMInputTokens?: number; costPerMOutputTokens?: number },
+): NonNullable<AppConfig["llm"]["capableModel"]> {
+  return {
+    ...target,
+    ...(fallback.costPerMInputTokens !== undefined ? { costPerMInputTokens: fallback.costPerMInputTokens } : {}),
+    ...(fallback.costPerMOutputTokens !== undefined ? { costPerMOutputTokens: fallback.costPerMOutputTokens } : {}),
+  };
+}
+
+async function disableOpenCodeIfUnavailable(config: AppConfig, log: ReturnType<typeof createLogger>): Promise<void> {
+  const hasOpenCodeInPrimary = config.llm.provider === "opencode";
+  const hasOpenCodeInFallbacks = (config.llm.fallbackModels ?? []).some((fb) => fb.provider === "opencode");
+  const hasOpenCodeInCapable = config.llm.capableModel?.provider === "opencode";
+  const hasOpenCodeInCapableFallbacks = (config.llm.capableFallbackModels ?? []).some((fb) => fb.provider === "opencode");
+  const hasOpenCodeConfigured =
+    hasOpenCodeInPrimary || hasOpenCodeInFallbacks || hasOpenCodeInCapable || hasOpenCodeInCapableFallbacks;
+
+  if (!hasOpenCodeConfigured) return;
+
+  const openCodeBaseUrl = config.llm.providers?.opencode?.baseUrl;
+  const isAvailable = await isOpenCodeAvailable(openCodeBaseUrl);
+  if (isAvailable) return;
+
+  log.warn(`OpenCode unavailable at ${toBaseUrl(openCodeBaseUrl)} — disabling opencode provider at startup`);
+
+  const sanitizedFallbacks = sanitizeFallbacks(config.llm.fallbackModels);
+
+  if (hasOpenCodeInPrimary) {
+    const promoted = sanitizedFallbacks[0];
+    if (!promoted) {
+      throw new Error("OpenCode is unavailable and no non-opencode fallback model is configured");
+    }
+
+    config.llm.provider = promoted.provider;
+    config.llm.model = promoted.model;
+    config.llm.apiKey = promoted.apiKey ?? config.llm.apiKey;
+    config.llm.fallbackModels = sanitizedFallbacks.slice(1);
+    log.warn(`Promoted fallback ${promoted.provider}/${promoted.model} as startup primary model`);
+  } else {
+    config.llm.fallbackModels = sanitizedFallbacks;
+  }
+
+  const capableFallbacksBase = config.llm.capableFallbackModels ?? config.llm.fallbackModels ?? [];
+  const sanitizedCapableFallbacks = capableFallbacksBase.filter((fb) => fb.provider !== "opencode");
+
+  if (hasOpenCodeInCapable && config.llm.capableModel) {
+    const promotedCapable = sanitizedCapableFallbacks[0];
+    if (!promotedCapable) {
+      config.llm.capableModel = undefined;
+      config.llm.capableFallbackModels = [];
+      log.warn("Disabled capable model because it was opencode and no non-opencode capable fallback is configured");
+    } else {
+      config.llm.capableModel = copyFallbackPricingToCapable(
+        {
+          ...config.llm.capableModel,
+          provider: promotedCapable.provider,
+          model: promotedCapable.model,
+        },
+        promotedCapable,
+      );
+      config.llm.capableFallbackModels = sanitizedCapableFallbacks.slice(1);
+      log.warn(`Promoted capable fallback ${promotedCapable.provider}/${promotedCapable.model} as capable model`);
+    }
+  } else {
+    config.llm.capableFallbackModels = sanitizedCapableFallbacks;
+  }
+}
+
+function setOpenCodeDirectoryDefault(config: AppConfig, defaultDirectory: string): void {
+  const usesOpenCode =
+    config.llm.provider === "opencode" ||
+    (config.llm.fallbackModels ?? []).some((fb) => fb.provider === "opencode") ||
+    config.llm.capableModel?.provider === "opencode" ||
+    (config.llm.capableFallbackModels ?? []).some((fb) => fb.provider === "opencode");
+
+  if (!usesOpenCode) return;
+
+  config.llm.providers ??= {};
+  config.llm.providers.opencode ??= {};
+  if (!config.llm.providers.opencode.directory || config.llm.providers.opencode.directory.trim() === "") {
+    config.llm.providers.opencode.directory = defaultDirectory;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Public API                                                         */
 /* ------------------------------------------------------------------ */
@@ -163,12 +242,13 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   const pricingLog = createLogger("pricing");
   const memoryLog = createLogger("memory");
   const dashboardLog = createLogger("dashboard");
-  const webhookLog = createLogger("webhook");
   const serverLog = createLogger("server");
 
   // ── 1. Config + DB + Model ──────────────────────────────────────
   const resolvedConfigPath = configPath ?? resolve(ROOT_DIR, "config", "default.yaml");
   const config = loadConfig(resolvedConfigPath);
+  setOpenCodeDirectoryDefault(config, ROOT_DIR);
+  await disableOpenCodeIfUnavailable(config, modelLog);
   configLog.log(`provider=${config.llm.provider} model=${config.llm.model}`);
 
   const dbPath = resolve(ROOT_DIR, "agent.db");
@@ -181,8 +261,11 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
       const errMsg = event.error instanceof Error ? event.error.message : String(event.error);
       modelLog.warn(
         `Fallback: ${event.failedProvider}/${event.failedModelId} failed ` +
-        `(${errMsg}), switching to ${event.selectedProvider}/${event.selectedModelId}`,
+        `(${event.reason}: ${errMsg}), switching to ${event.selectedProvider}/${event.selectedModelId}`,
       );
+      if (event.reason === "quota-window") {
+        modelLog.warn("Quota/time-window limit detected. Staying on fallback model until limit resets.");
+      }
     },
   });
   const fallbackCount = config.llm.fallbackModels?.length ?? 0;
@@ -193,9 +276,21 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   let capablePricing: ModelPricing | undefined;
   if (config.llm.capableModel) {
     const cm = config.llm.capableModel;
-    capableModel = await resolveSingleModel({
-      provider: cm.provider, model: cm.model,
-      apiKey: config.llm.apiKey, providers: config.llm.providers,
+    capableModel = await resolveModelWithFallbacks({
+      provider: cm.provider,
+      model: cm.model,
+      apiKey: config.llm.apiKey,
+      providers: config.llm.providers,
+      fallbackModels: config.llm.capableFallbackModels ?? config.llm.fallbackModels,
+      fallbackCooldownMs: config.llm.fallbackCooldownMs,
+      fallbackCooldownReasons: config.llm.fallbackCooldownReasons,
+      onFallback: (event) => {
+        const errMsg = event.error instanceof Error ? event.error.message : String(event.error);
+        modelLog.warn(
+          `Capable fallback: ${event.failedProvider}/${event.failedModelId} failed ` +
+          `(${event.reason}: ${errMsg}), switching to ${event.selectedProvider}/${event.selectedModelId}`,
+        );
+      },
     });
     if (cm.costPerMInputTokens !== undefined && cm.costPerMOutputTokens !== undefined) {
       capablePricing = { costPerMInputTokens: cm.costPerMInputTokens, costPerMOutputTokens: cm.costPerMOutputTokens };
@@ -283,8 +378,15 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   };
 
   // Built-in tools plugin + auto-resolved channel/service plugins
-  const builtInToolsPlugin = createBuiltInToolsPlugin({ registry, configPath: resolvedConfigPath });
-  const channelPlugins = await resolvePlugins(config, channelLimiter);
+  const builtInToolsPlugin = createBuiltInToolsPlugin({
+    registry,
+    configPath: resolvedConfigPath,
+    sessionSearchFn: (q, opts) => sessionRepo.searchByKeyword(q, opts),
+    listRecentSessionsFn: (opts) => sessionRepo.listRecentCompleted(opts),
+  });
+  const channelPlugins = await resolvePlugins(config, channelLimiter, {
+    listDistinctChannels: () => sessionRepo.listDistinctChannels(),
+  });
   const allPlugins = [builtInToolsPlugin, ...channelPlugins];
 
   const pluginResult = await loadPlugins(allPlugins, pluginCtx);
@@ -340,10 +442,32 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
 
   const handleMessage: HandleMessageFn = async (message, stream) => {
     const emitter = new LoopEmitter();
-    emitter.on("text_delta", (delta) => stream.onTextDelta(delta));
+    let sawProgressSignal = false;
+    const markProgress = () => {
+      sawProgressSignal = true;
+    };
+
+    emitter.on("text_delta", (delta) => {
+      markProgress();
+      stream.onTextDelta(delta);
+    });
     emitter.on("text_reset", () => stream.onTextReset?.());
-    emitter.on("tool_call", (call) => stream.onToolCall(call.toolName));
+    emitter.on("tool_call", (call) => {
+      markProgress();
+      stream.onToolCall(call.toolName);
+    });
     emitter.on("error", (error) => stream.onError(error));
+
+    let progressTick = 0;
+    const progressTimer = setInterval(() => {
+      if (sawProgressSignal) return;
+      progressTick += 1;
+      if (progressTick === 1) {
+        stream.onToolCall("thinking");
+      } else {
+        stream.onToolCall(`working (step ${progressTick})`);
+      }
+    }, 12_000);
 
     try {
       const tokenBudget = config.llm.conversationHistoryTokenBudget ?? config.memory.conversationHistoryTokenBudget;
@@ -357,8 +481,10 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
         { ...sessionDeps, confirmationDelegate },
         emitter,
       );
+      clearInterval(progressTimer);
       stream.onFinish(result.output);
     } catch (err) {
+      clearInterval(progressTimer);
       const error = err instanceof Error ? err : new Error(String(err));
       stream.onError(error);
     }
@@ -367,71 +493,78 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   const queuedHandleMessage = createQueuedHandler(handleMessage);
 
   // ── 5. Plugin afterInit (wires adapters with handleMessage) ────
-  await pluginResult.afterInit(handleMessage, queuedHandleMessage);
+  // Build session runner factory for plugins (auto-allow governance, no confirmation)
+  const createPluginSessionRunner = () => {
+    const pluginDeps: RunSessionDeps = {
+      ...sessionDeps,
+      governancePolicy: { read: "auto-allow", write: "auto-allow", exec: "auto-allow" },
+      confirmationDelegate: undefined,
+    };
+    return async (input: { input: string; channelId?: string }) => {
+      const result = await runSession(input, pluginDeps);
+      return { sessionId: result.sessionId, output: result.output };
+    };
+  };
+
+  // Build proactive message sender from available adapters
+  const buildSendProactiveMessage = () => {
+    const adapters = pluginCtx.getAdapters();
+    const proactiveAdapters = adapters
+      .filter((a): a is ChannelAdapterLike & { sendMessage: (id: string, text: string) => Promise<void> } =>
+        typeof a.sendMessage === "function",
+      )
+      .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
+    return proactiveAdapters.length > 0
+      ? createProactiveMessenger(proactiveAdapters)
+      : undefined;
+  };
+
+  await pluginResult.afterInit(handleMessage, queuedHandleMessage, {
+    createSessionRunner: createPluginSessionRunner,
+    sendProactiveMessage: buildSendProactiveMessage(),
+  });
 
   // adaptersByPrefix now points to the loader's map — adapters registered
   // during afterInit are visible immediately to handleMessage/confirmationDelegate.
-
-  // ── 6. Heartbeat ───────────────────────────────────────────────
-  let heartbeat: HeartbeatScheduler | null = null;
-
-  if (config.heartbeat?.enabled) {
-    const adapters = pluginCtx.getAdapters();
-    const proactiveAdapters = adapters
-      .filter((a): a is ChannelAdapterLike & { sendMessage: (id: string, text: string) => Promise<void> } =>
-        typeof a.sendMessage === "function",
-      )
-      .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
-
-    const sendProactiveMessage = proactiveAdapters.length > 0
-      ? createProactiveMessenger(proactiveAdapters)
-      : undefined;
-
-    const heartbeatDeps: RunSessionDeps = {
-      ...sessionDeps,
-      governancePolicy: { read: "auto-allow", write: "auto-allow", exec: "auto-allow" },
-      confirmationDelegate: undefined,
-    };
-
-    heartbeat = createHeartbeatScheduler({ config, sessionDeps: heartbeatDeps, workspacePath, sendProactiveMessage });
-    heartbeat.start();
-  }
-
-  // ── 6b. Task Scheduler ─────────────────────────────────────────
-  let taskScheduler: TaskScheduler | null = null;
-  {
-    const adapters = pluginCtx.getAdapters();
-    const proactiveAdapters = adapters
-      .filter((a): a is ChannelAdapterLike & { sendMessage: (id: string, text: string) => Promise<void> } =>
-        typeof a.sendMessage === "function",
-      )
-      .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
-
-    const sendProactive = proactiveAdapters.length > 0
-      ? createProactiveMessenger(proactiveAdapters)
-      : undefined;
-
-    const schedulerDeps: RunSessionDeps = {
-      ...sessionDeps,
-      governancePolicy: { read: "auto-allow", write: "auto-allow", exec: "auto-allow" },
-      confirmationDelegate: undefined,
-    };
-
-    const store = createTaskStoreFromWorkspace(workspacePath);
-    taskScheduler = createTaskScheduler({
-      store,
-      sessionDeps: schedulerDeps,
-      sendProactiveMessage: sendProactive,
-    });
-    taskScheduler.start();
-  }
 
   // ── 7. Build Hono app ──────────────────────────────────────────
   const app = new Hono();
   app.route("/", healthRoute);
 
   // Dashboard
-  const dashboardApi = createDashboardApi({ sessionRepo, traceRepo, workspacePath, liveSessionBus });
+  const reloadSkills = createSkillReloader(pluginCtx, registry);
+  const dashboardApi = createDashboardApi({
+    sessionRepo,
+    traceRepo,
+    workspacePath,
+    liveSessionBus,
+    dashboardSecret: config.dashboard?.secret,
+    reloadSkills,
+    getModelStatus: () => {
+      const runtimeChain = getFallbackModelStatus(model);
+      if (runtimeChain) {
+        return {
+          chain: runtimeChain,
+          fallbackCooldownMs: config.llm.fallbackCooldownMs,
+          fallbackCooldownReasons: config.llm.fallbackCooldownReasons,
+        };
+      }
+      return {
+        chain: [
+          {
+            index: 0,
+            provider: config.llm.provider,
+            modelId: config.llm.model,
+            inCooldown: false,
+            cooldownUntil: null,
+            cooldownRemainingMs: 0,
+          },
+        ],
+        fallbackCooldownMs: config.llm.fallbackCooldownMs,
+        fallbackCooldownReasons: config.llm.fallbackCooldownReasons,
+      };
+    },
+  });
   app.route("/", dashboardApi);
 
   const botName = parseBotName(workspacePath);
@@ -500,7 +633,7 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     const effectiveMaxIterations = (initialState.iteration ?? 0) + (body.additionalIterations ?? config.agent.maxIterations);
     try {
       const result = await runSession({
-        input: body.input ?? "", sessionId: body.sessionId, initialMessages: restoredMessages,
+        input: body.input ?? "", sessionId: body.sessionId, initialMessages: restoredMessages as CoreMessage[],
         initialToolMessageMeta: toolMessageMeta, initialState,
         costCapOverrideUsd: effectiveCostCap, maxIterationsOverride: effectiveMaxIterations,
       }, sessionDeps);
@@ -520,36 +653,7 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     }
   });
 
-  // Webhook route (if enabled)
-  if (config.webhook?.enabled !== false) {
-    const adapters = pluginCtx.getAdapters();
-    const proactiveAdapters = adapters
-      .filter((a): a is ChannelAdapterLike & { sendMessage: (id: string, text: string) => Promise<void> } =>
-        typeof a.sendMessage === "function",
-      )
-      .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
-
-    const sendProactiveMessage = proactiveAdapters.length > 0
-      ? createProactiveMessenger(proactiveAdapters)
-      : undefined;
-
-    const webhookSessionDeps: RunSessionDeps = {
-      ...sessionDeps,
-      governancePolicy: { read: "auto-allow", write: "auto-allow", exec: "auto-allow" },
-      confirmationDelegate: undefined,
-    };
-
-    const webhookApp = createWebhookRoute({ config, sessionDeps: webhookSessionDeps, sendProactiveMessage });
-    if (httpLimiter) {
-      app.use("/webhook/*", createRateLimitMiddleware(httpLimiter));
-    }
-    app.route("/", webhookApp);
-    webhookLog.log(`Endpoint enabled at POST /webhook/:event` +
-      (config.webhook?.secret ? " (signature verification on)" : "") +
-      (config.webhook?.resultChannelId ? ` → results to ${config.webhook.resultChannelId}` : ""));
-  }
-
-  // Mount plugin routes
+  // Mount plugin routes (includes webhook if enabled)
   for (const route of pluginResult.routes) {
     app.route(route.prefix, route.app);
   }
@@ -557,8 +661,6 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   // ── 8. Shutdown ────────────────────────────────────────────────
   const shutdown = async () => {
     serverLog.log("Shutting down...");
-    heartbeat?.stop();
-    taskScheduler?.stop();
     await pluginResult.shutdown();
     process.exit(0);
   };

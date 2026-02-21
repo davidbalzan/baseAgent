@@ -1,22 +1,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
-import { createLogger, type AppConfig } from "@baseagent/core";
-import type { SendProactiveMessageFn } from "@baseagent/gateway";
-import { runSession, type RunSessionDeps, type RunSessionResult } from "./run-session.js";
+import { createLogger, type RunSessionLikeFn } from "@baseagent/core";
 
 const log = createLogger("webhook");
 
-export type RunSessionFn = (
-  input: { input: string; channelId?: string },
-  deps: RunSessionDeps,
-) => Promise<RunSessionResult>;
-
-export interface WebhookDeps {
-  config: AppConfig;
-  sessionDeps: RunSessionDeps;
-  sendProactiveMessage?: SendProactiveMessageFn;
-  /** Override for testing — defaults to the real runSession. */
-  runSessionFn?: RunSessionFn;
+export interface WebhookRouteDeps {
+  secret?: string;
+  resultChannelId?: string;
+  runSession: RunSessionLikeFn;
+  sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
 }
 
 const NO_ACTION_PHRASES = [
@@ -30,13 +22,11 @@ const NO_ACTION_PHRASES = [
   "no webhook action needed",
 ];
 
-/** Returns true if the output indicates the agent found nothing to act on. */
 export function isNoActionWebhookOutput(output: string): boolean {
   const lower = output.toLowerCase().trim();
   return NO_ACTION_PHRASES.some((phrase) => lower.includes(phrase));
 }
 
-/** Builds the prompt sent to the agent for a webhook event. */
 export function buildWebhookPrompt(event: string, payload: unknown, now: Date): string {
   const iso = now.toISOString();
 
@@ -55,7 +45,6 @@ export function buildWebhookPrompt(event: string, payload: unknown, now: Date): 
   ].join("\n");
 }
 
-/** Verifies an HMAC-SHA256 webhook signature using timing-safe comparison. */
 export function verifyWebhookSignature(
   secret: string,
   signature: string,
@@ -68,24 +57,18 @@ export function verifyWebhookSignature(
       Buffer.from(expected, "utf-8"),
     );
   } catch {
-    // Lengths differ — signature is invalid
     return false;
   }
 }
 
-/** Creates a Hono route group for the webhook endpoint. */
-export function createWebhookRoute(deps: WebhookDeps) {
-  const { config, sessionDeps, sendProactiveMessage } = deps;
-  const runSessionImpl = deps.runSessionFn ?? runSession;
-  const secret = config.webhook?.secret;
-  const resultChannelId = config.webhook?.resultChannelId;
+export function createWebhookRoute(deps: WebhookRouteDeps) {
+  const { secret, resultChannelId, runSession, sendProactiveMessage } = deps;
 
   const app = new Hono();
 
   app.post("/webhook/:event", async (c) => {
     const event = c.req.param("event");
 
-    // 1. Verify signature if secret is configured
     if (secret) {
       const signature = c.req.header("x-webhook-signature");
       if (!signature) {
@@ -95,7 +78,6 @@ export function createWebhookRoute(deps: WebhookDeps) {
       if (!verifyWebhookSignature(secret, signature, rawBody)) {
         return c.json({ error: "Invalid webhook signature" }, 401);
       }
-      // Re-parse body from raw text since we consumed the stream
       let parsed: unknown;
       try {
         parsed = JSON.parse(rawBody);
@@ -105,7 +87,6 @@ export function createWebhookRoute(deps: WebhookDeps) {
       return await handleWebhookEvent(c, event, parsed);
     }
 
-    // 2. No secret — parse JSON body directly
     let body: unknown;
     try {
       body = await c.req.json();
@@ -116,8 +97,7 @@ export function createWebhookRoute(deps: WebhookDeps) {
     return await handleWebhookEvent(c, event, body);
   });
 
-  async function handleWebhookEvent(c: any, event: string, payload: unknown) {
-    // Validate payload is an object (not null, not array, not primitive)
+  async function handleWebhookEvent(c: { json: (data: unknown, status?: number) => Response }, event: string, payload: unknown) {
     if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
       return c.json({ error: "Payload must be a JSON object" }, 400);
     }
@@ -125,15 +105,11 @@ export function createWebhookRoute(deps: WebhookDeps) {
     const prompt = buildWebhookPrompt(event, payload, new Date());
 
     try {
-      const result = await runSessionImpl(
-        { input: prompt, channelId: `webhook:${event}` },
-        sessionDeps,
-      );
+      const result = await runSession({ input: prompt, channelId: `webhook:${event}` });
 
       const output = result.output;
       log.log(`Event "${event}" processed — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
 
-      // Send to channel if configured and output is actionable
       if (resultChannelId && sendProactiveMessage && !isNoActionWebhookOutput(output)) {
         try {
           await sendProactiveMessage(resultChannelId, output);
@@ -147,14 +123,6 @@ export function createWebhookRoute(deps: WebhookDeps) {
         sessionId: result.sessionId,
         event,
         output: result.output,
-        usage: {
-          totalTokens: result.state.totalTokens,
-          promptTokens: result.state.promptTokens,
-          completionTokens: result.state.completionTokens,
-          estimatedCostUsd: result.state.estimatedCostUsd,
-          iterations: result.state.iteration,
-        },
-        status: result.state.status,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Internal server error";

@@ -28,7 +28,15 @@ export function createChatPlugin(): Plugin {
         if (!body.text || typeof body.text !== "string") {
           return c.json({ error: "Missing 'text' field" }, 400);
         }
-        adapter.handleIncoming(body.text.trim());
+        const text = body.text.trim();
+        ctx.log(`[chat] incoming message (${text.length} chars)`);
+        try {
+          adapter.handleIncoming(text);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          ctx.warn(`[chat] failed to enqueue incoming message: ${msg}`);
+          return c.json({ error: "Failed to enqueue message" }, 500);
+        }
         return c.json({ ok: true });
       });
 
@@ -59,6 +67,43 @@ export function createChatPlugin(): Plugin {
         routes: app,
         routePrefix: "/chat",
         dashboardTabs: [chatDashboardTab],
+        docs: [{
+          title: "Chat",
+          filename: "CHAT.md",
+          content: [
+            "# Chat Plugin",
+            "",
+            "A browser-based chat interface embedded in the dashboard. Provides a real-time conversational UI for interacting with the agent without an external messaging platform.",
+            "",
+            "## How It Works",
+            "",
+            "The Chat tab in the dashboard connects via Server-Sent Events (SSE) for streaming responses. Messages are sent via HTTP POST and processed through the same pipeline as Telegram/Discord/Slack messages — including governance confirmations, rate limiting, and conversation history.",
+            "",
+            "## API",
+            "",
+            "| Method | Path | Description |",
+            "|--------|------|-------------|",
+            "| `POST` | `/chat/send` | Send a message from the browser |",
+            "| `GET` | `/chat/events` | SSE stream for real-time responses |",
+            "",
+            "## SSE Event Types",
+            "",
+            "| Event | Description |",
+            "|-------|-------------|",
+            "| `ping` | Keep-alive (every 20s) |",
+            "| `reply` | Agent's response text |",
+            "| `status` | Session status updates |",
+            "| `error_event` | Error information |",
+            "",
+            "## Configuration",
+            "",
+            "The chat plugin is always loaded — no configuration required. It uses `queuedHandleMessage` to prevent interleaved sessions, the same as all other channel adapters.",
+            "",
+            "## Channel ID Format",
+            "",
+            "`dashboard:chat`",
+          ].join("\n"),
+        }],
       };
     },
 

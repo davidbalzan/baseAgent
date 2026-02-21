@@ -27,7 +27,7 @@ How to build plugins for baseAgent. Plugins are the primary extension mechanism 
 
 A plugin is a TypeScript module that implements the `Plugin` interface from `@baseagent/core`. Plugins are loaded at server startup, sorted by phase, and each is given a `PluginContext` to interact with the system.
 
-> **Skills vs Plugins:** If you only need a single tool, use a [skill](CAPABILITIES.md#4-skills-system) instead — drop a `handler.ts` into `skills/` and restart. Plugins are for when you need routes, adapters, dashboard tabs, lifecycle hooks, or shared state across multiple tools. See [Skills vs Plugins](CAPABILITIES.md#skills-vs-plugins-vs-built-in-tools) for the full comparison.
+> **Skills vs Plugins:** If you only need a single tool, use a [skill](CAPABILITIES.md#4-skills-system) instead — drop a `handler.ts` into `skills/` and call `reload_skills` to load it. Plugins are for when you need routes, adapters, dashboard tabs, lifecycle hooks, or shared state across multiple tools. See [Skills vs Plugins](CAPABILITIES.md#skills-vs-plugins-vs-built-in-tools) for the full comparison.
 
 Plugins can contribute:
 
@@ -144,10 +144,22 @@ interface PluginAfterInitContext extends PluginContext {
   handleMessage: HandleMessageFnLike;        // Run an agent session
   queuedHandleMessage: HandleMessageFnLike;  // Queue-safe version (prevents interleaving)
   registerAdapter: (adapter) => void;        // Register a new adapter
+  createSessionRunner: () => RunSessionLikeFn;  // Create a session runner with auto-allow governance
+  sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;  // Send to a channel
 }
 ```
 
 Use `queuedHandleMessage` for adapters — it ensures only one session runs per channel at a time.
+
+Use `createSessionRunner()` for background services (heartbeat, scheduler) that need to run agent sessions autonomously. The returned `RunSessionLikeFn` has auto-allow governance (no user confirmation) since there's no interactive user:
+
+```typescript
+type RunSessionLikeFn = (
+  input: { input: string; channelId?: string },
+) => Promise<{ sessionId: string; output: string }>;
+```
+
+Use `sendProactiveMessage` to forward results to a messaging channel (e.g., Telegram, Discord). Only available when at least one adapter with `sendMessage` is registered.
 
 ---
 
@@ -411,6 +423,48 @@ export function createMyPlugin(): Plugin {
 
 If `routePrefix` is omitted, the plugin name is used: `/<name>`.
 
+### Proxy Pattern for Routes Needing `afterInit` Context
+
+Routes are collected from `init()`, but `createSessionRunner()` is only available in `afterInit()`. If your routes need to run agent sessions, use a proxy Hono app:
+
+```typescript
+export function createMyPlugin(): Plugin {
+  let innerApp: Hono | null = null;
+
+  return {
+    name: "myplugin",
+    phase: "routes",
+
+    async init(ctx: PluginContext): Promise<PluginCapabilities | null> {
+      // Create a proxy that defers to the real app once it's wired
+      const proxyApp = new Hono();
+      proxyApp.all("/*", async (c) => {
+        if (!innerApp) {
+          return c.json({ error: "Plugin still initializing" }, 503);
+        }
+        return innerApp.fetch(c.req.raw);
+      });
+
+      return { routes: proxyApp, routePrefix: "/myplugin" };
+    },
+
+    async afterInit(ctx: PluginAfterInitContext): Promise<void> {
+      const runSession = ctx.createSessionRunner();
+
+      // Build the real app now that we have the session runner
+      innerApp = new Hono();
+      innerApp.post("/trigger", async (c) => {
+        const body = await c.req.json();
+        const result = await runSession({ input: body.task });
+        return c.json(result);
+      });
+    },
+  };
+}
+```
+
+This pattern is used by the webhook plugin (`@baseagent/plugin-webhook`).
+
 ---
 
 ## 11. Adding Dashboard Tabs
@@ -603,12 +657,12 @@ Reference implementations to learn from:
 | Discord | `@baseagent/plugin-discord` | `adapters` | Channel adapter |
 | Slack | `@baseagent/plugin-slack` | `adapters` | Channel adapter |
 | Chat | `@baseagent/plugin-chat` | `adapters` | Channel adapter + SSE routes + dashboard tab |
-| Webhook | `@baseagent/plugin-webhook` | `routes` | Signals webhook route |
-| Heartbeat | `@baseagent/plugin-heartbeat` | `services` | Signals heartbeat scheduler |
-| Scheduler | `@baseagent/plugin-scheduler` | `services` | Tools + routes + dashboard tab |
+| Webhook | `@baseagent/plugin-webhook` | `routes` | Self-contained webhook route + session runner (proxy app pattern) |
+| Heartbeat | `@baseagent/plugin-heartbeat` | `services` | Self-contained heartbeat scheduler with own session runner |
+| Scheduler | `@baseagent/plugin-scheduler` | `services` | Tools + routes + dashboard tab + self-contained tick loop |
 | Docs | `@baseagent/plugin-docs` | `routes` | Routes + dashboard tab |
 
-The **scheduler plugin** is the most complete example — it demonstrates tools, HTTP routes, and a dashboard tab all in one plugin. The **chat plugin** is the best example of a channel adapter with SSE streaming and governance support. Start with either if you're building something similar.
+The **scheduler plugin** is the most complete example — it demonstrates tools, HTTP routes, a dashboard tab, and a background service all in one plugin. The **webhook plugin** demonstrates the proxy Hono app pattern for routes that need `afterInit` context. The **heartbeat plugin** demonstrates a minimal background service using `createSessionRunner()`. The **chat plugin** is the best example of a channel adapter with SSE streaming and governance support.
 
 ---
 

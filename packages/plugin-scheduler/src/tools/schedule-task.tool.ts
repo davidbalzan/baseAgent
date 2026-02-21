@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { ToolDefinition } from "@baseagent/core";
 import type { TaskStore } from "../task-store.js";
 
-export function createScheduleTaskTool(store: TaskStore, channelId?: string): ToolDefinition {
+export function createScheduleTaskTool(store: TaskStore, defaultChannelId?: string): ToolDefinition {
   return {
     name: "schedule_task",
     description:
@@ -14,6 +14,7 @@ export function createScheduleTaskTool(store: TaskStore, channelId?: string): To
     parameters: z.object({
       task: z.string().describe("Description of what the agent should do when this task fires"),
       executeAt: z.string().describe("ISO 8601 datetime with timezone offset for when to execute (e.g. '2025-01-15T14:30:00+01:00'). Must be in the future."),
+      channelId: z.string().optional().describe("Channel to deliver results to. Defaults to the current channel."),
     }),
     async execute(args) {
       const executeAt = new Date(args.executeAt);
@@ -24,6 +25,7 @@ export function createScheduleTaskTool(store: TaskStore, channelId?: string): To
         return `Error: executeAt must be in the future. Current server time: ${new Date().toISOString()}.`;
       }
 
+      const channelId = args.channelId ?? defaultChannelId;
       const id = randomUUID();
       const createdAt = new Date();
       store.add({

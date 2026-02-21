@@ -1,6 +1,6 @@
 # Pending Work
 
-> Derived from PRD coverage audit (2026-02-19). Items ordered by priority.
+> Derived from PRD coverage audit (2026-02-19). Updated 2026-02-21 after architecture audit. Items ordered by priority.
 
 ---
 
@@ -34,8 +34,23 @@
 ### UI
 - [x] **UI-2** Live session view — SSE stream at `/api/live`; `LiveSessionBus` in `live-stream.ts` forwards `trace_event`, `session_started`, `session_completed` to all connected dashboard clients; live trace events append in real-time to the open session detail
 - [x] **UI-3** Memory file editor — "Memory" tab in dashboard; `GET /api/memory` lists all 5 files, `PUT /api/memory/:file` saves edits; inline textarea editor per card
-- [ ] **UI-4** Heartbeat status dashboard — last run time, next scheduled run, result history
+- [ ] **UI-4** Heartbeat status dashboard — last run time, next scheduled run, result history (heartbeat plugin is now self-contained; dashboard tab can be added to `plugin-heartbeat`)
 - [x] **UI-5** Mobile-responsive dashboard — stack layout on ≤700px, hamburger menu for tabs, slide-in session detail with back button, 3-col stats grid on mobile
+
+---
+
+## Architecture Audit (2026-02-21) — All Complete
+
+- [x] Register missing tools (`think`, `web_search`) in `built-in-tools.plugin.ts`
+- [x] Flesh out heartbeat plugin — self-contained with `afterInit()`/`shutdown()`
+- [x] Flesh out webhook plugin — self-contained with proxy Hono app pattern
+- [x] Decouple scheduler from `run-session.ts` — optional `channelId` param on `schedule_task`
+- [x] Fix per-user compaction writes — `userDir` param threaded through compaction
+- [x] Sync dashboard MEMORY_FILES — shared from `@baseagent/memory`, added CONTEXT.md
+- [x] Add skill hot-reload — `reload_skills` tool + `/api/admin/reload-skills` endpoint
+- [x] Add dashboard API auth — optional `dashboard.secret` bearer token
+- [x] Extend `PluginAfterInitContext` — `createSessionRunner()` + `sendProactiveMessage`
+- [x] Type safety fixes — `CoreMessage[]`, Hono context types
 
 ---
 

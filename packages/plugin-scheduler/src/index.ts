@@ -4,6 +4,7 @@ import type {
   Plugin,
   PluginContext,
   PluginCapabilities,
+  PluginAfterInitContext,
   DashboardTab,
 } from "@baseagent/core";
 import { TaskStore } from "./task-store.js";
@@ -11,6 +12,7 @@ import { createScheduleTaskTool } from "./tools/schedule-task.tool.js";
 import { createListTasksTool } from "./tools/list-tasks.tool.js";
 import { createCancelTaskTool } from "./tools/cancel-task.tool.js";
 import { schedulerDashboardTab } from "./dashboard-tab.js";
+import { createTaskScheduler, type TaskScheduler } from "./scheduler.js";
 
 export { TaskStore } from "./task-store.js";
 export type { ScheduledTask } from "./task-store.js";
@@ -18,6 +20,7 @@ export { createScheduleTaskTool } from "./tools/schedule-task.tool.js";
 
 export function createSchedulerPlugin(): Plugin {
   let store: TaskStore | null = null;
+  let scheduler: TaskScheduler | null = null;
 
   return {
     name: "scheduler",
@@ -84,10 +87,27 @@ export function createSchedulerPlugin(): Plugin {
         }],
       };
     },
+
+    async afterInit(ctx: PluginAfterInitContext): Promise<void> {
+      if (!store) return;
+
+      const runSession = ctx.createSessionRunner();
+      scheduler = createTaskScheduler({
+        store,
+        runSession,
+        sendProactiveMessage: ctx.sendProactiveMessage,
+      });
+      scheduler.start();
+    },
+
+    async shutdown(): Promise<void> {
+      scheduler?.stop();
+      scheduler = null;
+    },
   };
 }
 
-/** Access the task store path from workspace (for the timer). */
+/** Access the task store path from workspace (for external use). */
 export function createTaskStoreFromWorkspace(workspacePath: string): TaskStore {
   return new TaskStore(resolve(workspacePath, "SCHEDULED_TASKS.json"));
 }

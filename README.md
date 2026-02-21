@@ -21,7 +21,9 @@ No domain-specific logic is included. Instead, baseAgent ships the **bones** -- 
 - **Governance & rate limiting** -- per-tool permission policies and sliding-window rate limits at every layer
 - **Configurable sandboxing** -- three isolation levels for shell execution (loose / medium / strict Docker)
 - **Model fallback chains** -- if the primary LLM fails, automatically escalate to the next
-- **Extensible skill system** -- drop a folder into `skills/` to add new capabilities
+- **Extensible skill system** -- drop a folder into `skills/`, hot-reload without restart
+- **Plugin architecture** -- self-contained plugins for heartbeat, webhooks, scheduling, and more
+- **Dashboard authentication** -- optional bearer token auth for all API endpoints
 - **Trace replay dashboard** -- built-in web UI for inspecting sessions and tool calls
 
 ---
@@ -53,7 +55,15 @@ baseAgent/
 │   ├── gateway/        # Channel adapters (Telegram, Discord, Slack), message queue
 │   ├── memory/         # SQLite persistence (Drizzle ORM), memory file loader
 │   ├── tools/          # Built-in tools, governance, executor, sandbox, skill loader
-│   ├── server/         # Agent library: bootstrapAgent(), session runner, heartbeat, webhook, dashboard
+│   ├── server/         # Agent library: bootstrapAgent(), session runner, dashboard API
+│   ├── plugin-heartbeat/  # Heartbeat scheduler plugin (self-contained)
+│   ├── plugin-webhook/    # Webhook trigger plugin (self-contained)
+│   ├── plugin-scheduler/  # Task scheduler plugin (self-contained)
+│   ├── plugin-telegram/   # Telegram adapter plugin
+│   ├── plugin-discord/    # Discord adapter plugin
+│   ├── plugin-slack/      # Slack adapter plugin
+│   ├── plugin-chat/       # Web chat adapter plugin
+│   ├── plugin-docs/       # Documentation dashboard plugin
 │   └── app/            # User entry point — add custom routes and integrations here
 ├── skills/             # User-installed tool extensions
 │   ├── echo/           # Test skill — echoes messages back
@@ -61,6 +71,7 @@ baseAgent/
 │   └── project-context/# Reads PRD, decisions, and roadmap docs
 ├── workspace/          # Agent's working directory & memory files
 │   ├── SOUL.md         # Identity, boundaries, tool-use directives
+│   ├── CONTEXT.md      # Situational context and environment
 │   ├── PERSONALITY.md  # Voice, character, interaction style
 │   ├── USER.md         # User preferences (agent-writable)
 │   ├── MEMORY.md       # Accumulated context from compaction (agent-writable)
@@ -108,11 +119,12 @@ llm:
 
 ### Memory System
 
-Four Markdown files form the agent's long-term memory:
+Six Markdown files form the agent's long-term memory:
 
 | File | Writable by Agent | Purpose |
 |------|:-:|---------|
 | `SOUL.md` | No | Identity, guiding principles, tool-use directives |
+| `CONTEXT.md` | No | Situational context and environment |
 | `PERSONALITY.md` | No | Voice, character, interaction style |
 | `USER.md` | Yes (append) | User preferences learned over time |
 | `MEMORY.md` | Yes (append) | Conversation summaries from compaction |
@@ -130,16 +142,21 @@ These files are loaded into the system prompt at session start, prioritised in t
 
 | Tool | Permission | Description |
 |------|:----------:|-------------|
-| `shell_exec` | exec | Run any shell command in the workspace (filtered env, no API key leakage) |
+| `finish` | read | Signal task completion with a summary |
+| `think` | read | Internal scratchpad for step-by-step reasoning |
+| `memory_read` | read | Read any of the six workspace memory files |
+| `memory_write` | write | Append timestamped entries to `USER.md` or `MEMORY.md` |
 | `file_read` | read | Read workspace files with optional line-range offset/limit |
 | `file_write` | write | Write or append to workspace files (auto-creates parent dirs) |
 | `file_edit` | write | Exact-string-replace edit (must match uniquely) |
 | `file_list` | read | List files/dirs with type indicators and sizes (recursive mode, 500 entry cap) |
+| `shell_exec` | exec | Run any shell command in the workspace (filtered env, no API key leakage) |
 | `web_fetch` | read | Fetch a URL; HTML converted to Markdown, JSON prettified |
 | `web_search` | read | Brave Search API (requires `BRAVE_SEARCH_API_KEY`) |
-| `memory_read` | read | Read any of the four workspace memory files |
-| `memory_write` | write | Append timestamped entries to `USER.md` or `MEMORY.md` |
-| `finish` | read | Signal task completion with a summary |
+| `add_mcp_server` | write | Dynamically connect an MCP server at runtime |
+| `schedule_task` | write | Schedule a future agent session (plugin-scheduler) |
+| `list_tasks` | read | List all scheduled tasks (plugin-scheduler) |
+| `reload_skills` | write | Hot-reload skills from `skills/` without restart |
 
 ---
 
@@ -166,7 +183,7 @@ All endpoints served by Hono on the configured port (default: 3000).
 | `GET` | `/health` | Health check (status, timestamp, uptime) |
 | `POST` | `/run` | Start a new agent session |
 | `POST` | `/resume` | Resume a stopped session (timeout, cost_limit, or failed) |
-| `POST` | `/webhook/:event` | Trigger an agent session from an external event |
+| `POST` | `/webhook/:event` | Trigger an agent session from an external event (plugin) |
 | `GET` | `/dashboard` | Trace replay web UI |
 | `GET` | `/api/sessions` | List recent sessions (up to 100) |
 | `GET` | `/api/sessions/:id` | Single session detail |
@@ -175,6 +192,8 @@ All endpoints served by Hono on the configured port (default: 3000).
 | `GET` | `/api/live` | SSE stream of live session events |
 | `GET` | `/api/memory` | List workspace memory files with content |
 | `PUT` | `/api/memory/:file` | Update a workspace memory file |
+| `POST` | `/api/admin/reload-skills` | Hot-reload skills without restart |
+| `GET` | `/scheduler/tasks` | List scheduled tasks (plugin) |
 
 ---
 
@@ -266,7 +285,7 @@ skills/
     └── handler.ts    # default export: ToolDefinition or (ctx) => ToolDefinition
 ```
 
-Skills are discovered and loaded at startup. Failed loads are logged but don't crash the server. Loaded skills appear alongside built-in tools in the agent's tool palette.
+Skills are discovered and loaded at startup and can be **hot-reloaded** at runtime via the `reload_skills` tool or `POST /api/admin/reload-skills`. Failed loads are logged but don't crash the server. Loaded skills appear alongside built-in tools in the agent's tool palette.
 
 ---
 
@@ -327,11 +346,13 @@ There are several clean extension points — no need to touch agent internals:
 
 | Where | What |
 |-------|------|
+| `packages/plugin-*/` | Plugins — tools, adapters, routes, dashboard tabs, background services |
 | `packages/app/src/index.ts` | Custom Hono routes and middleware |
-| `skills/<name>/handler.ts` | New agent tools (auto-discovered at startup) |
-| `workspace/SOUL.md` | Agent identity and hard constraints (hot-reloaded) |
+| `skills/<name>/handler.ts` | New agent tools (hot-reloadable via `reload_skills`) |
+| `workspace/SOUL.md` | Agent identity and hard constraints (hot-reloaded per session) |
+| `workspace/CONTEXT.md` | Situational context and environment |
 | `workspace/HEARTBEAT.md` | Scheduled proactive tasks |
-| `config/default.yaml` | MCP servers, channels, governance, rate limits |
+| `config/default.yaml` | MCP servers, channels, governance, rate limits, dashboard auth |
 
 See **[docs/CAPABILITIES.md](./docs/CAPABILITIES.md)** for a full reference covering every capability, API endpoint, and configuration field.
 
@@ -342,6 +363,7 @@ See **[docs/CAPABILITIES.md](./docs/CAPABILITIES.md)** for a full reference cove
 | Document | Purpose |
 |----------|---------|
 | [docs/CAPABILITIES.md](./docs/CAPABILITIES.md) | Full capability reference (API, tools, config) |
+| [docs/PLUGINS.md](./docs/PLUGINS.md) | Plugin development guide |
 | [docs/PRD.md](./docs/PRD.md) | Full product requirements and phasing |
 | [docs/DECISIONS.md](./docs/DECISIONS.md) | Architectural Decision Records |
 | [docs/COMMANDS.md](./docs/COMMANDS.md) | AI commands reference |

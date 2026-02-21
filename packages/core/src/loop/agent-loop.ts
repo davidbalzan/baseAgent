@@ -6,6 +6,7 @@ import { LoopEmitter } from "./loop-events.js";
 import { createLoopState, updateUsage, type LoopState, type ModelPricing } from "./loop-state.js";
 import { compactMessages, persistCompactionSummary, decayToolOutputs, type ToolMessageMeta } from "./compaction.js";
 import { wrapUserInput } from "./injection-defense.js";
+import { createToolFailureState, processToolResults } from "./tool-failure-tracker.js";
 
 export interface AgentLoopOptions {
   model: LanguageModel;
@@ -24,6 +25,8 @@ export interface AgentLoopOptions {
   pricing?: ModelPricing;
   /** Stronger model used for compaction summarization. Falls back to the loop model if omitted. */
   compactionModel?: LanguageModel;
+  /** Per-user directory for writing compaction summaries. Falls back to workspacePath when omitted. */
+  userDir?: string;
   /** Prior exchanges from previous sessions on the same channel, injected before the current input. */
   conversationHistory?: CoreMessage[];
   /** Pre-existing message history for resume. When set, the `input` param is unused. */
@@ -99,6 +102,7 @@ export async function runAgentLoop(
     workspacePath,
     toolOutputDecayIterations,
     toolOutputDecayThresholdChars,
+    userDir,
     compactionModel,
     pricing,
     conversationHistory,
@@ -135,6 +139,7 @@ export async function runAgentLoop(
   let finalOutput = "";
   let narrationNudges = 0;
   const MAX_NARRATION_NUDGES = 2;
+  const failureState = createToolFailureState();
   const toolMessageMeta: ToolMessageMeta[] = initialToolMessageMeta
     ? [...initialToolMessageMeta]
     : [];
@@ -302,6 +307,21 @@ export async function runAgentLoop(
       messages.push(toolResults);
       toolMessageMeta.push({ messageIndex: messages.length - 1, iteration: state.iteration });
 
+      // --- Tool failure recovery ---
+      // Track per-tool failures and nudge the model when tools are repeatedly broken.
+      const toolCallResults = (toolResults.content as Array<{ toolCallId: string; toolName: string; result: string }>)
+        .map((r) => ({ toolCallId: r.toolCallId, toolName: r.toolName, isError: r.result.startsWith("Error:") }));
+      const recovery = processToolResults(failureState, toolCallResults);
+      if (recovery) {
+        messages.push({ role: "user", content: recovery.message });
+        emitTrace(loopEmitter, sessionId, "tool_failure_recovery", state.iteration, {
+          reason: recovery.reason,
+          failedTools: recovery.failedTools,
+          ...(recovery.failureCounts ? { failureCounts: recovery.failureCounts } : {}),
+          ...(recovery.consecutiveAllFailIterations ? { consecutiveAllFailIterations: recovery.consecutiveAllFailIterations } : {}),
+        });
+      }
+
       // Decay old tool outputs (cheap, no LLM call)
       if (toolOutputDecayIterations) {
         decayToolOutputs(
@@ -324,7 +344,7 @@ export async function runAgentLoop(
         toolMessageMeta.length = 0;
 
         if (workspacePath) {
-          persistCompactionSummary(workspacePath, summary);
+          persistCompactionSummary(workspacePath, summary, userDir);
         }
 
         emitTrace(loopEmitter, sessionId, "compaction", state.iteration, {

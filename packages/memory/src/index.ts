@@ -9,6 +9,6 @@ export { MessageRepository } from "./repositories/message.repository.js";
 export type { SerializedMessage } from "./repositories/message.repository.js";
 export { deserializeMessages } from "./repositories/message-deserializer.js";
 export type { DeserializedSession, RestoredMessage } from "./repositories/message-deserializer.js";
-export { loadMemoryFiles, parseBotName } from "./files/memory-loader.js";
-export type { LoadMemoryOptions } from "./files/memory-loader.js";
+export { loadMemoryFiles, parseBotName, MEMORY_FILES } from "./files/memory-loader.js";
+export type { LoadMemoryOptions, MemoryFile } from "./files/memory-loader.js";
 export { resolveUserDir } from "./files/user-dir.js";

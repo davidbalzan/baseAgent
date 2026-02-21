@@ -187,10 +187,11 @@ body::before {
 .layout:not(.tab-traces) .main-panel { display: none; }
 
 /* Full-width panels: hidden by default, shown by their tab */
-.live-panel, .memory-panel, .costs-panel { display: none; grid-column: 1 / -1; }
+.live-panel, .memory-panel, .costs-panel, .status-panel { display: none; grid-column: 1 / -1; }
 .layout.tab-live .live-panel { display: flex; }
 .layout.tab-memory .memory-panel { display: flex; }
 .layout.tab-costs .costs-panel { display: flex; }
+.layout.tab-status .status-panel { display: flex; }
 
 /* ─── SIDEBAR ─── */
 .sidebar {
@@ -957,6 +958,102 @@ body::before {
 
 .costs-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; }
 
+/* ─── STATUS PANEL ─── */
+.status-panel {
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-3) transparent;
+}
+
+.status-content {
+  padding: 20px 24px;
+  max-width: 1100px;
+  animation: fadeUp 0.25s var(--ease);
+}
+
+.status-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.status-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.status-refresh-btn {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.status-refresh-btn:hover { color: var(--text-1); border-color: var(--border-active); }
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.status-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.status-card.cooldown { border-color: var(--orange); box-shadow: inset 0 0 0 1px rgba(255,159,67,.2); }
+
+.status-kv {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.status-model {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-0);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.status-badge {
+  display: inline-block;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.status-badge.ready { color: var(--green); border-color: rgba(79,255,143,.35); background: rgba(79,255,143,.08); }
+.status-badge.cooling { color: var(--orange); border-color: rgba(255,159,67,.35); background: rgba(255,159,67,.08); }
+.status-mono { font-family: var(--font-mono); }
+
 .top-table { width: 100%; border-collapse: collapse; }
 .top-table th {
   font-family: var(--font-mono); font-size: 10px; font-weight: 600;
@@ -1042,6 +1139,7 @@ body::before {
     <button class="tab-btn" data-tab="live" onclick="switchTab('live')">Live</button>
     <button class="tab-btn" data-tab="memory" onclick="switchTab('memory')">Memory</button>
     <button class="tab-btn" data-tab="costs" onclick="switchTab('costs')">Costs</button>
+    <button class="tab-btn" data-tab="status" onclick="switchTab('status')">Status</button>
     <!-- __PLUGIN_TAB_BUTTONS__ -->
   </nav>
   <div class="topbar-right">
@@ -1108,6 +1206,11 @@ body::before {
     <div class="loading" style="height:200px"><div class="loading-spinner"></div></div>
   </section>
 
+  <!-- ── STATUS PANEL ── -->
+  <section class="status-panel" id="status-panel">
+    <div class="loading" style="height:200px"><div class="loading-spinner"></div></div>
+  </section>
+
   <!-- __PLUGIN_PANELS__ -->
 
 </div>
@@ -1123,6 +1226,9 @@ let currentIteration = null;
 let currentTab = 'traces';
 let costsData = null;
 let memoryLoaded = false;
+let statusData = null;
+let statusLoaded = false;
+let statusRefreshTimer = null;
 let liveEventSource = null;
 let liveEvents = [];
 let activeSessions = new Set();
@@ -1139,6 +1245,7 @@ const $liveStatus = document.getElementById('live-status');
 const $liveFeed = document.getElementById('live-feed');
 const $memoryGrid = document.getElementById('memory-grid');
 const $costsPanel = document.getElementById('costs-panel');
+const $statusPanel = document.getElementById('status-panel');
 
 // ──────────────────────────────────────────────
 // INIT
@@ -1769,6 +1876,67 @@ function goToSession(id) {
 }
 
 // ──────────────────────────────────────────────
+// MODEL STATUS
+// ──────────────────────────────────────────────
+async function loadStatus() {
+  if (!$statusPanel) return;
+  if (!statusLoaded) {
+    $statusPanel.innerHTML = '<div class="loading" style="height:200px"><div class="loading-spinner"></div></div>';
+  }
+  try {
+    statusData = await fetchJSON('/api/model/status');
+    statusLoaded = true;
+    renderStatus(statusData);
+  } catch (e) {
+    $statusPanel.innerHTML = `<div class="empty-state"><div class="empty-state-text">Failed to load model status: ${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+function renderStatus(data) {
+  const chain = Array.isArray(data.chain) ? data.chain : [];
+  const cooldownMs = Number(data.fallbackCooldownMs || 0);
+  const cooldownReasons = Array.isArray(data.fallbackCooldownReasons) ? data.fallbackCooldownReasons : [];
+  const updatedAt = data.updatedAt ? formatTimestamp(data.updatedAt) : '--';
+
+  if (chain.length === 0) {
+    $statusPanel.innerHTML = `
+      <div class="status-content">
+        <div class="status-header-row">
+          <div class="status-title">Model Status</div>
+          <div class="status-note">No fallback chain data available</div>
+          <button class="status-refresh-btn" onclick="loadStatus()">Refresh</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  $statusPanel.innerHTML = `
+    <div class="status-content">
+      <div class="status-header-row">
+        <div class="status-title">Model Status</div>
+        <div class="status-note">Updated ${updatedAt} · Cooldown window ${formatDuration(cooldownMs)} · Reasons ${escapeHtml(cooldownReasons.join(', ') || 'none')}</div>
+        <button class="status-refresh-btn" onclick="loadStatus()">Refresh</button>
+      </div>
+      <div class="status-grid">
+        ${chain.map((entry) => {
+          const remaining = Number(entry.cooldownRemainingMs || 0);
+          const inCooldown = Boolean(entry.inCooldown);
+          const rank = Number(entry.index || 0) + 1;
+          const role = rank === 1 ? 'Primary' : `Fallback #${rank - 1}`;
+          return `
+            <div class="status-card ${inCooldown ? 'cooldown' : ''}">
+              <div class="status-kv">${role}</div>
+              <div class="status-model">${escapeHtml(entry.provider)} / ${escapeHtml(entry.modelId)}</div>
+              <span class="status-badge ${inCooldown ? 'cooling' : 'ready'}">${inCooldown ? `Cooling (${formatDuration(remaining)} left)` : 'Ready'}</span>
+              ${inCooldown && entry.cooldownReason ? `<div class="status-kv" style="margin-top:8px">Reason <span class="status-mono">${escapeHtml(entry.cooldownReason)}</span></div>` : ''}
+              ${inCooldown && entry.cooldownUntil ? `<div class="status-kv" style="margin-top:8px">Until <span class="status-mono">${escapeHtml(formatTimestamp(entry.cooldownUntil))}</span></div>` : ''}
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+// ──────────────────────────────────────────────
 // TAB SWITCHING
 // ──────────────────────────────────────────────
 // Plugin tab activators — populated by injected plugin JS
@@ -1789,6 +1957,17 @@ function switchTab(tab) {
   if (tab === 'costs' && !costsData) loadCosts();
   if (tab === 'memory' && !memoryLoaded) loadMemory();
   if (tab === 'live') renderLiveFeed();
+  if (tab === 'status') {
+    loadStatus();
+    if (!statusRefreshTimer) {
+      statusRefreshTimer = setInterval(() => {
+        if (currentTab === 'status') loadStatus();
+      }, 10_000);
+    }
+  } else if (statusRefreshTimer) {
+    clearInterval(statusRefreshTimer);
+    statusRefreshTimer = null;
+  }
 
   // Plugin tab lazy-load (one-shot activators)
   if (_pluginTabActivated[tab] === false && typeof window['_pluginActivate_' + tab] === 'function') {
@@ -1826,6 +2005,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === '2') switchTab('live');
   else if (e.key === '3') switchTab('memory');
   else if (e.key === '4') switchTab('costs');
+  else if (e.key === '5') switchTab('status');
   // __PLUGIN_KEYBOARD_SHORTCUTS__
 });
 
@@ -1863,6 +2043,16 @@ function formatNumber(n) {
   if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
   if (n >= 1000) return (n/1000).toFixed(1) + 'k';
   return String(n);
+}
+
+function formatDuration(ms) {
+  const totalSecs = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 function truncate(s, len) { return s.length > len ? s.slice(0, len) + '…' : s; }

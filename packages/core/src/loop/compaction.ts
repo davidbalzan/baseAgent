@@ -78,8 +78,9 @@ export function decayToolOutputs(
 export function persistCompactionSummary(
   workspacePath: string,
   summary: string,
+  userDir?: string,
 ): void {
-  const memoryPath = resolve(workspacePath, "MEMORY.md");
+  const memoryPath = resolve(userDir ?? workspacePath, "MEMORY.md");
   mkdirSync(dirname(memoryPath), { recursive: true });
 
   const timestamp = new Date().toISOString();

@@ -60,7 +60,9 @@ export async function loadSkills(
 
     try {
       const moduleUrl = pathToFileURL(handlerPath).href;
-      const mod = await import(moduleUrl);
+      // Append cache-bust query param to force re-import on reload
+      const bustUrl = `${moduleUrl}?t=${Date.now()}`;
+      const mod = await import(bustUrl);
       const exported = mod.default;
 
       if (!exported) {

@@ -99,6 +99,84 @@ export class SessionRepository {
       .all();
   }
 
+  searchByKeyword(
+    query: string,
+    opts?: { channelId?: string; daysBack?: number; limit?: number },
+  ): Array<{
+    id: string;
+    input: string;
+    output: string | null;
+    channelId: string | null;
+    createdAt: string;
+  }> {
+    const daysBack = Math.min(opts?.daysBack ?? 30, 365);
+    const limit = Math.min(opts?.limit ?? 10, 50);
+    const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const pattern = `%${escaped}%`;
+
+    return this.db.all<{
+      id: string;
+      input: string;
+      output: string | null;
+      channelId: string | null;
+      createdAt: string;
+    }>(sql`
+      SELECT id, input, output, channel_id AS "channelId", created_at AS "createdAt"
+      FROM sessions
+      WHERE (input LIKE ${pattern} ESCAPE '\\' OR output LIKE ${pattern} ESCAPE '\\')
+        AND status = 'completed'
+        AND created_at >= datetime('now', ${`-${daysBack} days`})
+        ${opts?.channelId ? sql`AND channel_id = ${opts.channelId}` : sql``}
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `);
+  }
+
+  listRecentCompleted(opts?: {
+    channelId?: string;
+    daysBack?: number;
+    limit?: number;
+  }): Array<{
+    id: string;
+    input: string;
+    output: string | null;
+    channelId: string | null;
+    createdAt: string;
+  }> {
+    const daysBack = Math.min(opts?.daysBack ?? 7, 30);
+    const limit = Math.min(opts?.limit ?? 20, 50);
+
+    return this.db.all<{
+      id: string;
+      input: string;
+      output: string | null;
+      channelId: string | null;
+      createdAt: string;
+    }>(sql`
+      SELECT id, input, output, channel_id AS "channelId", created_at AS "createdAt"
+      FROM sessions
+      WHERE status = 'completed'
+        AND output IS NOT NULL
+        AND created_at >= datetime('now', ${`-${daysBack} days`})
+        ${opts?.channelId ? sql`AND channel_id = ${opts.channelId}` : sql``}
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `);
+  }
+
+  listDistinctChannels(daysBack = 7): Array<{ channelId: string; sessionCount: number }> {
+    return this.db.all<{ channelId: string; sessionCount: number }>(sql`
+      SELECT channel_id AS "channelId", COUNT(*) AS "sessionCount"
+      FROM sessions
+      WHERE status = 'completed'
+        AND channel_id IS NOT NULL
+        AND channel_id NOT LIKE 'heartbeat:%'
+        AND created_at >= datetime('now', ${`-${daysBack} days`})
+      GROUP BY channel_id
+      ORDER BY MAX(created_at) DESC
+    `);
+  }
+
   getCostAggregates(): CostAggregates {
     const totals = this.db.get<{
       sessions: number; cost: number; tokens: number; promptTokens: number; completionTokens: number;

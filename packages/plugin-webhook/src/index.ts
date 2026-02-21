@@ -1,16 +1,16 @@
+import { Hono } from "hono";
 import type {
   Plugin,
   PluginContext,
   PluginCapabilities,
   PluginAfterInitContext,
 } from "@baseagent/core";
+import { createWebhookRoute } from "./webhook.js";
 
-/**
- * Webhook plugin — signals that the webhook route should be enabled.
- * The actual route is created by bootstrap since it requires
- * RunSessionDeps (which are server-internal).
- */
 export function createWebhookPlugin(): Plugin {
+  // The real webhook Hono app, created in afterInit once session runner is available.
+  let innerApp: Hono | null = null;
+
   return {
     name: "webhook",
     phase: "routes",
@@ -20,7 +20,21 @@ export function createWebhookPlugin(): Plugin {
         return null;
       }
       ctx.log("[webhook] Plugin enabled");
+
+      // Create a proxy Hono app that forwards to the real webhook app
+      // once it's wired up in afterInit. This lets us return routes
+      // from init() while deferring session runner binding to afterInit.
+      const proxyApp = new Hono();
+      proxyApp.all("/webhook/:event", async (c) => {
+        if (!innerApp) {
+          return c.json({ error: "Webhook not ready — plugin still initializing" }, 503);
+        }
+        return innerApp.fetch(c.req.raw);
+      });
+
       return {
+        routes: proxyApp,
+        routePrefix: "/",
         docs: [{
           title: "Webhook",
           filename: "WEBHOOK.md",
@@ -51,7 +65,7 @@ export function createWebhookPlugin(): Plugin {
             "",
             "## Security",
             "",
-            "- When `secret` is set, requests are verified using HMAC-SHA256 signature in the `X-Signature` header",
+            "- When `secret` is set, requests are verified using HMAC-SHA256 signature in the `X-Webhook-Signature` header",
             "- The webhook session runs with auto-allow governance (no confirmation prompts)",
             "- HTTP rate limiting applies if `rateLimit.http` is configured",
           ].join("\n"),
@@ -59,12 +73,20 @@ export function createWebhookPlugin(): Plugin {
       };
     },
 
-    async afterInit(_ctx: PluginAfterInitContext): Promise<void> {
-      // Route creation is handled by the plugin loader
+    async afterInit(ctx: PluginAfterInitContext): Promise<void> {
+      const runSession = ctx.createSessionRunner();
+      innerApp = createWebhookRoute({
+        secret: ctx.config.webhook?.secret,
+        resultChannelId: ctx.config.webhook?.resultChannelId,
+        runSession,
+        sendProactiveMessage: ctx.sendProactiveMessage,
+      });
     },
 
     async shutdown(): Promise<void> {
-      // No cleanup needed
+      innerApp = null;
     },
   };
 }
+
+export { createWebhookRoute } from "./webhook.js";

@@ -60,7 +60,7 @@ When a limit is reached the session status is set to `timeout`, `cost_limit`, or
 
 ### Context Compaction
 
-When the prompt token count exceeds `memory.compactionThreshold` (default: 4000), the agent summarises the current conversation using the LLM and replaces the raw history with the condensed version. The summary is also appended to `workspace/MEMORY.md`.
+When the prompt token count exceeds `memory.compactionThreshold` (default: 4000), the agent summarises the current conversation using the LLM and replaces the raw history with the condensed version. The summary is also appended to `MEMORY.md` — either in the per-user directory (`workspace/users/<userId>/MEMORY.md`) when available, or the shared `workspace/MEMORY.md`.
 
 ### Tool Output Decay
 
@@ -80,25 +80,30 @@ At the start of each session the agent scores all registered tools against the u
 
 ### Files
 
-Five Markdown files in `workspace/` form the agent's persistent memory. They are loaded into the system prompt on every session start.
+Six Markdown files in `workspace/` form the agent's persistent memory. They are loaded into the system prompt on every session start, in priority order.
 
-| File | Agent-writable | Purpose |
-|------|:-:|---------|
-| `SOUL.md` | No | Identity, guiding principles, tool-use directives, hard boundaries |
-| `PERSONALITY.md` | No | Voice, character, communication style, response patterns |
-| `USER.md` | Yes (append-only) | User preferences and context learned over time |
-| `MEMORY.md` | Yes (append-only) | Long-term memories from compaction summaries |
-| `HEARTBEAT.md` | No | Scheduled task definitions for proactive runs |
+| File | Priority | Agent-writable | Purpose |
+|------|:--------:|:-:|---------|
+| `SOUL.md` | 1 | No | Identity, guiding principles, tool-use directives, hard boundaries |
+| `CONTEXT.md` | 2 | No | Situational context and environment |
+| `PERSONALITY.md` | 3 | No | Voice, character, communication style, response patterns |
+| `USER.md` | 4 | Yes (append-only) | User preferences and context learned over time |
+| `MEMORY.md` | 5 | Yes (append-only) | Long-term memories from compaction summaries |
+| `HEARTBEAT.md` | 6 | No | Scheduled task definitions for proactive runs |
 
 ### Loading Order and Token Budget
 
-Files are loaded in the order above and concatenated. Loading stops when the combined token count exceeds `memory.maxTokenBudget` (default: 8000 tokens). Earlier files (SOUL, PERSONALITY) are always included; later files may be truncated.
+Files are loaded in priority order and concatenated. Loading stops when the combined token count exceeds `memory.maxTokenBudget` (default: 8000 tokens). Earlier files (SOUL, CONTEXT, PERSONALITY) are always included; later files may be truncated.
+
+### Per-User Memory
+
+`USER.md` and `MEMORY.md` are flagged as per-user files. When a session has a user directory (derived from the channel's user ID), these files are resolved from `workspace/users/<userId>/` first, falling back to the shared workspace root. Compaction summaries are also written to the per-user `MEMORY.md` when a user directory is available.
 
 ### Protect Semantics
 
-- `SOUL.md` and `PERSONALITY.md` are **read-only to the agent** — the `file_write` and `file_edit` tools will refuse to modify them.
+- `SOUL.md`, `CONTEXT.md`, and `PERSONALITY.md` are **read-only to the agent** — the `file_write` and `file_edit` tools will refuse to modify them.
 - `USER.md` and `MEMORY.md` accept **append-only** writes from the agent via `memory_write`.
-- All five files can be edited freely via the dashboard (`PUT /api/memory/:file`).
+- All six files can be edited freely via the dashboard (`PUT /api/memory/:file`).
 
 ### Hot Reload
 
@@ -122,7 +127,7 @@ All tools are registered at startup. Each has a **permission level** that maps t
 
 ### `memory_read`
 - **Permission**: read
-- **Purpose**: Read any of the five workspace memory files.
+- **Purpose**: Read any of the six workspace memory files.
 - **Parameters**: `file` — one of `SOUL.md`, `PERSONALITY.md`, `USER.md`, `MEMORY.md`, `HEARTBEAT.md`
 
 ### `memory_write`
@@ -171,13 +176,45 @@ All tools are registered at startup. Each has a **permission level** that maps t
 - **Purpose**: Dynamically connect a new MCP server at runtime and register its tools. Also persists the server to `config/default.yaml`.
 - **Parameters**: `name` (string), `command` (string), `args?` (string[]), `permission?` (`read` | `write` | `exec`), `group?` (string)
 
+### `schedule_task`
+- **Permission**: write
+- **Purpose**: Schedule a task for future execution. The task runs as a full agent session at the specified time.
+- **Parameters**: `task` (string), `executeAt` (ISO 8601 string), `channelId?` (string — channel to deliver results to, defaults to the current channel)
+- **Provided by**: `@baseagent/plugin-scheduler`
+
+### `list_tasks`
+- **Permission**: read
+- **Purpose**: List all scheduled tasks with their status.
+- **Parameters**: none
+- **Provided by**: `@baseagent/plugin-scheduler`
+
+### `reload_skills`
+- **Permission**: write
+- **Purpose**: Hot-reload all skills from the `skills/` directory without restarting the server. Unregisters old skills and registers newly discovered ones.
+- **Parameters**: none
+
+### `install_plugin`
+- **Permission**: exec
+- **Purpose**: Install a plugin package from npm into the agent.
+- **Parameters**: `packageName` (string)
+
+### `list_plugins`
+- **Permission**: read
+- **Purpose**: List all currently loaded plugins and their status.
+- **Parameters**: none
+
+### `remove_plugin`
+- **Permission**: exec
+- **Purpose**: Remove an installed plugin package.
+- **Parameters**: `packageName` (string)
+
 ---
 
 ## 4. Skills System
 
 ### Overview
 
-Skills are custom tools dropped into the `skills/` directory. They are loaded at startup alongside built-in tools. A failed skill load is logged but does not crash the server.
+Skills are custom tools dropped into the `skills/` directory. They are loaded at startup alongside built-in tools and can be **hot-reloaded** at runtime via the `reload_skills` tool or `POST /api/admin/reload-skills` endpoint — no server restart required. A failed skill load is logged but does not crash the server.
 
 ### Directory Layout
 
@@ -251,7 +288,7 @@ baseAgent has three extension mechanisms. Each serves a different scope:
 |---|---|---|---|
 | **Location** | `skills/<name>/handler.ts` | `packages/plugin-<name>/` | `packages/tools/src/` |
 | **What it provides** | A single tool | Tools + routes + adapters + dashboard tabs + docs | Core platform tools |
-| **Setup** | Drop a file, restart | Package + monorepo wiring + resolve-plugins entry | Hardcoded in source |
+| **Setup** | Drop a file, call `reload_skills` | Package + monorepo wiring + resolve-plugins entry | Hardcoded in source |
 | **Config gating** | None (always loaded) | Config-driven (can return `null` from `init()`) | Always loaded |
 | **Access to** | `workspacePath` | Full `PluginContext` (config, adapters, tools, logging) | Direct internal access |
 | **Lifecycle hooks** | None | `init()` → `afterInit()` → `shutdown()` | None |
@@ -345,11 +382,12 @@ All adapters share the same message handling pipeline:
 
 ### Telegram
 
-- **Library**: Telegraf (long polling)
+- **Library**: Telegraf (long polling or webhook mode)
 - **Max message length**: 4096 chars (auto-truncated)
 - **Channel ID format**: `telegram:<chatId>`
 - **Streaming**: Progressive message edits during generation
 - **Governance confirmations**: Supported — bot sends a prompt and waits for YES/NO reply
+- **Media support**: Photo, video, audio, voice, document, sticker, animation, video note, location, contact, venue, poll, callback queries
 - **Config**:
 
 ```yaml
@@ -359,6 +397,10 @@ channels:
     token: ${TELEGRAM_BOT_TOKEN}
     allowedUserIds:       # Optional allowlist
       - "12345678"
+    webhook:              # Optional webhook mode
+      enabled: false
+      url: "https://yourdomain.com/webhook/telegram"
+      secret: "webhook_secret"
 ```
 
 ### Discord
@@ -590,7 +632,7 @@ Keep-alive pings are sent every 20 seconds.
 
 #### `GET /api/memory`
 
-List all five workspace memory files with their content.
+List all six workspace memory files with their content.
 
 **Response:**
 ```json
@@ -609,9 +651,9 @@ List all five workspace memory files with their content.
 
 #### `PUT /api/memory/:file`
 
-Overwrite a memory file. Only the five known filenames are accepted (no path traversal).
+Overwrite a memory file. Only the six known filenames are accepted (no path traversal).
 
-**`:file`**: One of `SOUL.md`, `PERSONALITY.md`, `USER.md`, `MEMORY.md`, `HEARTBEAT.md`
+**`:file`**: One of `SOUL.md`, `CONTEXT.md`, `PERSONALITY.md`, `USER.md`, `MEMORY.md`, `HEARTBEAT.md`
 
 **Request body:**
 ```json
@@ -624,6 +666,27 @@ Overwrite a memory file. Only the five known filenames are accepted (no path tra
 ```
 
 **Error responses**: `403` unknown/disallowed file, `400` missing content, `500` write error.
+
+### Dashboard Authentication
+
+When `dashboard.secret` is configured, all `/api/*` routes require a bearer token:
+
+```
+Authorization: Bearer <secret>
+```
+
+Requests without a valid token receive `401 Unauthorized`. When no secret is configured, all endpoints are open (suitable for local development).
+
+### Admin Endpoints
+
+#### `POST /api/admin/reload-skills`
+
+Hot-reload all skills from the `skills/` directory. Unregisters old skills and registers newly discovered ones. No server restart required.
+
+**Response `200`:**
+```json
+{ "ok": true, "message": "Skills reloaded successfully" }
+```
 
 ### Plugin Routes
 
@@ -669,9 +732,9 @@ Every tool call passes through a governance gate before execution. The gate chec
 
 | Level | Tools |
 |-------|-------|
-| `read` | `file_read`, `file_list`, `memory_read`, `web_fetch`, `web_search`, `finish`, `think` |
-| `write` | `file_write`, `file_edit`, `memory_write`, `add_mcp_server` |
-| `exec` | `shell_exec` |
+| `read` | `file_read`, `file_list`, `memory_read`, `web_fetch`, `web_search`, `finish`, `think`, `list_tasks`, `list_plugins` |
+| `write` | `file_write`, `file_edit`, `memory_write`, `add_mcp_server`, `schedule_task`, `reload_skills` |
+| `exec` | `shell_exec`, `install_plugin`, `remove_plugin` |
 
 ### Policies
 
@@ -785,7 +848,7 @@ sandbox:
 
 ### Overview
 
-When enabled, the agent wakes on a configurable schedule and reads `workspace/HEARTBEAT.md` for task definitions. Each tick runs a full agent session with auto-allow governance. If the session produces actionable output, it is forwarded to the configured channel.
+The heartbeat is a **self-contained plugin** (`@baseagent/plugin-heartbeat`). When enabled, the agent wakes on a configurable schedule and reads `workspace/HEARTBEAT.md` for task definitions. Each tick runs a full agent session with auto-allow governance via the plugin's own session runner (`createSessionRunner()`). If the session produces actionable output, it is forwarded to the configured channel. The plugin manages its own lifecycle — starting the scheduler in `afterInit()` and stopping it in `shutdown()`.
 
 ### Configuration
 
@@ -818,7 +881,7 @@ The agent uses its full tool palette during heartbeat sessions. Results forwarde
 
 ### Overview
 
-External systems can trigger agent sessions via HTTP. Supports optional HMAC-SHA256 signature verification. Results can be routed to a messaging channel.
+The webhook is a **self-contained plugin** (`@baseagent/plugin-webhook`). External systems can trigger agent sessions via HTTP. Supports optional HMAC-SHA256 signature verification. Results can be routed to a messaging channel. The plugin returns its Hono route from `init()` and wires the session runner in `afterInit()` using a proxy app pattern.
 
 ### Endpoint
 
@@ -1078,6 +1141,12 @@ Each of `channel`, `http`, and `tool` accepts:
 | `secret` | string | — | HMAC-SHA256 signing secret |
 | `resultChannelId` | string | — | Default channel for webhook results |
 
+### `dashboard`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `secret` | string | — | Bearer token for dashboard API authentication. When set, all `/api/*` routes require `Authorization: Bearer <secret>`. When unset, endpoints are open. |
+
 ### `mcp`
 
 | Field | Type | Description |
@@ -1139,7 +1208,7 @@ export default {
 EOF
 ```
 
-Restart the server — the tool is automatically discovered and registered.
+Call the `reload_skills` tool (or `POST /api/admin/reload-skills`) to load it immediately without a server restart.
 
 ### Connecting an MCP Server
 

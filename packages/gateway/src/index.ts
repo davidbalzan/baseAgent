@@ -6,6 +6,7 @@ export type {
   HandleMessageFn,
   StreamCallbacks,
   IncomingMessage,
+  IncomingMessageAttachment,
 } from "./adapter.js";
 
 // Message queue + proactive routing

@@ -1,24 +1,46 @@
 llm:
-  provider: openrouter
-  model: z-ai/glm-4.7-flash
-  apiKey: ${OPENROUTER_API_KEY}
-  costPerMInputTokens: 0.06
-  costPerMOutputTokens: 0.40
-  capableModel:
-    provider: openrouter
-    model: z-ai/glm-5
-    costPerMInputTokens: 0.3
-    costPerMOutputTokens: 2.55
+  provider: opencode
+  model: anthropic/claude-sonnet-4-20250514
+  costPerMInputTokens: 0
+  costPerMOutputTokens: 0
   fallbackModels:
     - provider: openrouter
-      model: z-ai/glm-5
-      costPerMInputTokens: 0.3
-      costPerMOutputTokens: 2.55
+      model: z-ai/glm-4.7-flash
+      apiKey: ${OPENROUTER_API_KEY}
+      costPerMInputTokens: 0.06
+      costPerMOutputTokens: 0.40
+  fallbackCooldownMs: 1800000
+  fallbackCooldownReasons:
+    - quota-window
+    - rate-limit
+    - auth
+  capableFallbackModels:
+    - provider: openrouter
+      model: z-ai/glm-4.7-flash
+      apiKey: ${OPENROUTER_API_KEY}
+      costPerMInputTokens: 0.06
+      costPerMOutputTokens: 0.40
   providers:
     anthropic:
       apiKey: ${ANTHROPIC_API_KEY}
+      oauthAuthFile: ${ANTHROPIC_OAUTH_AUTH_FILE}
     openai:
       apiKey: ${OPENAI_API_KEY}
+      oauthAuthFile: ${OPENAI_OAUTH_AUTH_FILE}
+    opencode:
+      baseUrl: ${OPENCODE_BASE_URL}
+      providerId: openai
+      directory: ${OPENCODE_DIRECTORY}
+      timeoutMs: 60000
+      modelCooldownMs: 1800000
+      modelCooldownReasons:
+        - quota-window
+        - rate-limit
+      modelFallbacks:
+        - anthropic/claude-opus-4-20250514
+        - openai/gpt-5.3-codex
+        - openai/gpt-5.2-codex
+        - openai/gpt-5-codex
     ollama:
       baseUrl: http://localhost:11434
 users:

@@ -22,6 +22,18 @@ export interface IncomingMessageLike {
   channelId: string;
   userId: string;
   messageId: string;
+  attachments?: Array<{
+    kind: string;
+    fileId?: string;
+    mimeType?: string;
+    fileName?: string;
+    fileSize?: number;
+    width?: number;
+    height?: number;
+    durationSeconds?: number;
+    caption?: string;
+    payload?: Record<string, unknown>;
+  }>;
 }
 
 export interface StreamCallbacksLike {
@@ -96,12 +108,21 @@ export interface PluginCapabilities {
 /** Determines the order in which plugins are loaded. */
 export type PluginPhase = "tools" | "adapters" | "routes" | "services";
 
+/** A session runner function that plugins can call to execute agent sessions. */
+export type RunSessionLikeFn = (
+  input: { input: string; channelId?: string },
+) => Promise<{ sessionId: string; output: string }>;
+
 /** Extended context available in afterInit() — includes the message handler. */
 export interface PluginAfterInitContext extends PluginContext {
   handleMessage: HandleMessageFnLike;
   queuedHandleMessage: HandleMessageFnLike;
   /** Register an adapter during afterInit (for adapters that need handleMessage). */
   registerAdapter: (adapter: ChannelAdapterLike) => void;
+  /** Create a session runner with auto-allow governance (no confirmation prompts). */
+  createSessionRunner: () => RunSessionLikeFn;
+  /** Get a function to send proactive messages to a channel. */
+  sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
 }
 
 /** The plugin contract. */

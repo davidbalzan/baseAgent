@@ -94,6 +94,7 @@ describe("createFallbackModel", () => {
       failedProvider: "test-primary",
       failedModelId: "model-primary",
       error: expect.any(Error),
+      reason: "rate-limit",
       selectedProvider: "test-fallback",
       selectedModelId: "model-fallback",
       fallbackIndex: 1,
@@ -150,6 +151,74 @@ describe("createFallbackModel", () => {
     expect(result).toBeDefined();
     expect(result.text).toBe("gen-fallback");
     expect(onFallback).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps quota-window failed model in cooldown across calls", async () => {
+    let primaryCalls = 0;
+    const primary: LanguageModelV1 = {
+      specificationVersion: "v1" as const,
+      provider: "test-primary",
+      modelId: "model-primary",
+      defaultObjectGenerationMode: undefined,
+      doStream: vi.fn(async () => {
+        primaryCalls += 1;
+        if (primaryCalls === 1) {
+          throw new Error("monthly usage limit reached");
+        }
+        return {
+          stream: new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: "text-delta" as const, textDelta: "primary-ok" });
+              controller.enqueue({
+                type: "finish" as const,
+                finishReason: "stop" as const,
+                usage: { promptTokens: 10, completionTokens: 5 },
+                logprobs: undefined,
+                providerMetadata: undefined,
+              });
+              controller.close();
+            },
+          }),
+          rawCall: { rawPrompt: null, rawSettings: {} },
+        };
+      }),
+      doGenerate: vi.fn(async () => ({
+        text: "primary-ok",
+        finishReason: "stop" as const,
+        usage: { promptTokens: 10, completionTokens: 5 },
+        rawCall: { rawPrompt: null, rawSettings: {} },
+      })),
+    } as unknown as LanguageModelV1;
+
+    const fallback = createMockModel("fallback", "fallback-ok");
+    const onFallback = vi.fn();
+    const model = createFallbackModel(primary, [fallback], { onFallback, cooldownMs: 60_000 });
+
+    await model.doStream(dummyStreamOpts);
+    await model.doStream(dummyStreamOpts);
+
+    expect(primaryCalls).toBe(1);
+    expect((fallback.doStream as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(2);
+    expect(onFallback).toHaveBeenCalled();
+    expect(onFallback.mock.calls[1][0].reason).toBe("quota-window");
+  });
+
+  it("preserves original cooldown reason when skipping while cooling", async () => {
+    const primary = createFailingModel("primary", new Error("fetch failed"));
+    const fallback = createMockModel("fallback", "ok");
+    const onFallback = vi.fn();
+    const model = createFallbackModel(primary, [fallback], {
+      onFallback,
+      cooldownMs: 60_000,
+      cooldownReasons: ["network"],
+    });
+
+    await model.doStream(dummyStreamOpts);
+    await model.doStream(dummyStreamOpts);
+
+    expect(onFallback).toHaveBeenCalledTimes(2);
+    expect(onFallback.mock.calls[0][0].reason).toBe("network");
+    expect(onFallback.mock.calls[1][0].reason).toBe("network");
   });
 
   it("reports composite provider and modelId metadata", () => {

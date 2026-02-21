@@ -1,30 +1,23 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createLogger, type AppConfig } from "@baseagent/core";
-import type { SendProactiveMessageFn } from "@baseagent/gateway";
-import { runSession, type RunSessionDeps, type RunSessionResult } from "./run-session.js";
+import { createLogger, type RunSessionLikeFn } from "@baseagent/core";
 
 const log = createLogger("heartbeat");
 
 export interface HeartbeatScheduler {
   start(): void;
   stop(): void;
-  /** Exposed for testing. */
   tick(): Promise<void>;
 }
 
-export type RunSessionFn = (
-  input: { input: string; channelId?: string },
-  deps: RunSessionDeps,
-) => Promise<RunSessionResult>;
-
 export interface HeartbeatDeps {
-  config: AppConfig;
-  sessionDeps: RunSessionDeps;
+  intervalMs: number;
+  channelId?: string;
   workspacePath: string;
-  sendProactiveMessage?: SendProactiveMessageFn;
-  /** Override for testing — defaults to the real runSession. */
-  runSessionFn?: RunSessionFn;
+  runSession: RunSessionLikeFn;
+  sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
+  reviewIntervalMs?: number;
+  listDistinctChannels?: () => Array<{ channelId: string; sessionCount: number }>;
 }
 
 const NO_ACTION_PHRASES = [
@@ -36,13 +29,11 @@ const NO_ACTION_PHRASES = [
   "no items due",
 ];
 
-/** Returns true if the output indicates the agent found nothing to act on. */
 export function isNoActionOutput(output: string): boolean {
   const lower = output.toLowerCase().trim();
   return NO_ACTION_PHRASES.some((phrase) => lower.includes(phrase));
 }
 
-/** Builds the prompt sent to the agent on each heartbeat tick. */
 export function buildHeartbeatPrompt(heartbeatContent: string, now: Date): string {
   const iso = now.toISOString();
   const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
@@ -64,14 +55,69 @@ export function buildHeartbeatPrompt(heartbeatContent: string, now: Date): strin
   ].join("\n");
 }
 
+export function buildReviewPrompt(channelId: string): string {
+  return [
+    `You are performing a periodic memory review for channel "${channelId}".`,
+    "",
+    `1. Call review_sessions with channelId="${channelId}" and daysBack=7`,
+    "2. Analyze the conversations for insights worth remembering:",
+    "   - User preferences, habits, recurring interests",
+    "   - Personal facts (names, locations, dates)",
+    "   - Corrections or clarifications the user made",
+    "   - Communication style patterns",
+    "3. Call memory_write to persist key findings to USER.md",
+    "4. Only write NEW insights not already captured in the user's profile",
+    "",
+    'If there are no new insights worth recording, reply: "All clear — no actions needed."',
+  ].join("\n");
+}
+
+const DEFAULT_REVIEW_INTERVAL_MS = 21_600_000; // 6 hours
+
 export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatScheduler {
-  const { config, sessionDeps, workspacePath, sendProactiveMessage } = deps;
-  const runSessionImpl = deps.runSessionFn ?? runSession;
-  const intervalMs = config.heartbeat?.intervalMs ?? 1_800_000;
-  const channelId = config.heartbeat?.channelId;
+  const {
+    intervalMs, channelId, workspacePath, runSession,
+    sendProactiveMessage, listDistinctChannels,
+    reviewIntervalMs = DEFAULT_REVIEW_INTERVAL_MS,
+  } = deps;
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
+  let lastReviewAt = 0;
+
+  function shouldReview(): boolean {
+    return Date.now() - lastReviewAt >= reviewIntervalMs;
+  }
+
+  async function reviewMemory(): Promise<void> {
+    if (!listDistinctChannels || !shouldReview()) return;
+
+    const channels = listDistinctChannels();
+    if (channels.length === 0) {
+      log.log("Memory review: no active channels found");
+      lastReviewAt = Date.now();
+      return;
+    }
+
+    log.log(`Memory review: ${channels.length} channel(s)`);
+
+    for (const { channelId: ch } of channels) {
+      try {
+        const prompt = buildReviewPrompt(ch);
+        const result = await runSession({ input: prompt, channelId: ch });
+        const output = result.output;
+        if (isNoActionOutput(output)) {
+          log.log(`Memory review [${ch}]: no new insights`);
+        } else {
+          log.log(`Memory review [${ch}]: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
+        }
+      } catch (err) {
+        log.error(`Memory review [${ch}] failed: ${err}`);
+      }
+    }
+
+    lastReviewAt = Date.now();
+  }
 
   async function tick(): Promise<void> {
     if (running) {
@@ -83,7 +129,6 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
     log.log("Running tick...");
 
     try {
-      // Read HEARTBEAT.md fresh each tick
       const heartbeatPath = resolve(workspacePath, "HEARTBEAT.md");
       let content: string;
       try {
@@ -99,16 +144,11 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
       }
 
       const prompt = buildHeartbeatPrompt(content, new Date());
-
-      const result = await runSessionImpl(
-        { input: prompt, channelId: "heartbeat:internal" },
-        sessionDeps,
-      );
+      const result = await runSession({ input: prompt, channelId: "heartbeat:internal" });
 
       const output = result.output;
       log.log(`Tick complete — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
 
-      // Send to channel if configured and output is actionable
       if (channelId && sendProactiveMessage && !isNoActionOutput(output)) {
         try {
           await sendProactiveMessage(channelId, output);
@@ -120,6 +160,12 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
     } catch (err) {
       log.error(`Tick failed: ${err}`);
     } finally {
+      // Run memory review after the main tick completes
+      try {
+        await reviewMemory();
+      } catch (err) {
+        log.error(`Memory review failed: ${err}`);
+      }
       running = false;
     }
   }
@@ -127,7 +173,6 @@ export function createHeartbeatScheduler(deps: HeartbeatDeps): HeartbeatSchedule
   return {
     start() {
       log.log(`Starting scheduler (interval: ${intervalMs}ms)`);
-      // Run first tick immediately
       tick();
       timer = setInterval(tick, intervalMs);
     },

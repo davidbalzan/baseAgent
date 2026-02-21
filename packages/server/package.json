@@ -24,6 +24,7 @@
     "@baseagent/plugin-chat": "workspace:*",
     "@baseagent/plugin-docs": "workspace:*",
     "@baseagent/plugin-self-enhance": "workspace:*",
+    "zod": "^3.23.0",
     "hono": "^4.7.0",
     "@hono/node-server": "^1.14.0"
   },

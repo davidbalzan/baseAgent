@@ -5,8 +5,7 @@ import {
   isNoActionWebhookOutput,
   verifyWebhookSignature,
   createWebhookRoute,
-  type RunSessionFn,
-} from "../webhook.js";
+} from "@baseagent/plugin-webhook/webhook";
 
 describe("buildWebhookPrompt", () => {
   it("includes event name, ISO timestamp, and formatted payload", () => {
@@ -71,41 +70,13 @@ describe("verifyWebhookSignature", () => {
 });
 
 describe("createWebhookRoute", () => {
-  const mockConfig = {
-    llm: { provider: "openrouter" as const, model: "test" },
-    agent: { maxIterations: 10, timeoutMs: 120_000, costCapUsd: 1 },
-    memory: {
-      compactionThreshold: 4000,
-      maxTokenBudget: 8000,
-      toolOutputDecayIterations: 3,
-      toolOutputDecayThresholdChars: 500,
-      conversationHistoryTokenBudget: 40000,
-    },
-    server: { port: 3000, host: "0.0.0.0" },
-    webhook: { enabled: true },
-  };
-
-  const mockSessionDeps = {} as any;
-
   it("calls runSession with correct prompt and channelId", async () => {
-    const mockRunSession: RunSessionFn = vi.fn().mockResolvedValue({
+    const mockRunSession = vi.fn().mockResolvedValue({
       sessionId: "sess-1",
       output: "Processed the push event.",
-      state: {
-        totalTokens: 100,
-        promptTokens: 80,
-        completionTokens: 20,
-        estimatedCostUsd: 0.01,
-        iteration: 2,
-        status: "completed",
-      },
     });
 
-    const app = createWebhookRoute({
-      config: mockConfig,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
-    });
+    const app = createWebhookRoute({ runSession: mockRunSession });
 
     const res = await app.request("/webhook/github.push", {
       method: "POST",
@@ -114,80 +85,29 @@ describe("createWebhookRoute", () => {
     });
 
     expect(res.status).toBe(200);
-    const json = (await res.json()) as any;
+    const json = (await res.json()) as Record<string, unknown>;
     expect(json.sessionId).toBe("sess-1");
     expect(json.event).toBe("github.push");
     expect(json.output).toBe("Processed the push event.");
-    expect(json.usage.totalTokens).toBe(100);
-    expect(json.status).toBe("completed");
 
     expect(mockRunSession).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.stringContaining("github.push"),
         channelId: "webhook:github.push",
       }),
-      mockSessionDeps,
     );
   });
 
-  it("returns full response shape with usage", async () => {
-    const mockRunSession: RunSessionFn = vi.fn().mockResolvedValue({
-      sessionId: "sess-2",
-      output: "Done.",
-      state: {
-        totalTokens: 200,
-        promptTokens: 150,
-        completionTokens: 50,
-        estimatedCostUsd: 0.05,
-        iteration: 3,
-        status: "completed",
-      },
-    });
-
-    const app = createWebhookRoute({
-      config: mockConfig,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
-    });
-
-    const res = await app.request("/webhook/ci.deploy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "success" }),
-    });
-
-    const json = (await res.json()) as any;
-    expect(json).toEqual({
-      sessionId: "sess-2",
-      event: "ci.deploy",
-      output: "Done.",
-      usage: {
-        totalTokens: 200,
-        promptTokens: 150,
-        completionTokens: 50,
-        estimatedCostUsd: 0.05,
-        iterations: 3,
-      },
-      status: "completed",
-    });
-  });
-
   it("sends result to resultChannelId when output is actionable", async () => {
-    const configWithChannel = {
-      ...mockConfig,
-      webhook: { enabled: true, resultChannelId: "telegram:123" },
-    };
-    const mockRunSession: RunSessionFn = vi.fn().mockResolvedValue({
+    const mockRunSession = vi.fn().mockResolvedValue({
       sessionId: "sess-3",
       output: "I found issues and created a ticket.",
-      state: { totalTokens: 0, promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0, iteration: 1, status: "completed" },
     });
     const mockSendMessage = vi.fn().mockResolvedValue(undefined);
 
     const app = createWebhookRoute({
-      config: configWithChannel,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
+      resultChannelId: "telegram:123",
+      runSession: mockRunSession,
       sendProactiveMessage: mockSendMessage,
     });
 
@@ -204,21 +124,15 @@ describe("createWebhookRoute", () => {
   });
 
   it("suppresses channel notification when output is 'no action needed'", async () => {
-    const configWithChannel = {
-      ...mockConfig,
-      webhook: { enabled: true, resultChannelId: "telegram:123" },
-    };
-    const mockRunSession: RunSessionFn = vi.fn().mockResolvedValue({
+    const mockRunSession = vi.fn().mockResolvedValue({
       sessionId: "sess-4",
       output: "No action needed.",
-      state: { totalTokens: 0, promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0, iteration: 1, status: "completed" },
     });
     const mockSendMessage = vi.fn();
 
     const app = createWebhookRoute({
-      config: configWithChannel,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
+      resultChannelId: "telegram:123",
+      runSession: mockRunSession,
       sendProactiveMessage: mockSendMessage,
     });
 
@@ -232,17 +146,8 @@ describe("createWebhookRoute", () => {
   });
 
   it("returns 401 when secret configured but signature missing", async () => {
-    const configWithSecret = {
-      ...mockConfig,
-      webhook: { enabled: true, secret: "my-secret" },
-    };
-    const mockRunSession: RunSessionFn = vi.fn();
-
-    const app = createWebhookRoute({
-      config: configWithSecret,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
-    });
+    const mockRunSession = vi.fn();
+    const app = createWebhookRoute({ secret: "my-secret", runSession: mockRunSession });
 
     const res = await app.request("/webhook/test", {
       method: "POST",
@@ -251,23 +156,14 @@ describe("createWebhookRoute", () => {
     });
 
     expect(res.status).toBe(401);
-    const json = (await res.json()) as any;
+    const json = (await res.json()) as Record<string, unknown>;
     expect(json.error).toContain("Missing X-Webhook-Signature");
     expect(mockRunSession).not.toHaveBeenCalled();
   });
 
   it("returns 401 when secret configured but signature invalid", async () => {
-    const configWithSecret = {
-      ...mockConfig,
-      webhook: { enabled: true, secret: "my-secret" },
-    };
-    const mockRunSession: RunSessionFn = vi.fn();
-
-    const app = createWebhookRoute({
-      config: configWithSecret,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
-    });
+    const mockRunSession = vi.fn();
+    const app = createWebhookRoute({ secret: "my-secret", runSession: mockRunSession });
 
     const res = await app.request("/webhook/test", {
       method: "POST",
@@ -279,28 +175,16 @@ describe("createWebhookRoute", () => {
     });
 
     expect(res.status).toBe(401);
-    const json = (await res.json()) as any;
-    expect(json.error).toContain("Invalid webhook signature");
     expect(mockRunSession).not.toHaveBeenCalled();
   });
 
   it("accepts request with valid signature", async () => {
     const secret = "my-secret";
-    const configWithSecret = {
-      ...mockConfig,
-      webhook: { enabled: true, secret },
-    };
-    const mockRunSession: RunSessionFn = vi.fn().mockResolvedValue({
+    const mockRunSession = vi.fn().mockResolvedValue({
       sessionId: "sess-sig",
       output: "Handled.",
-      state: { totalTokens: 0, promptTokens: 0, completionTokens: 0, estimatedCostUsd: 0, iteration: 1, status: "completed" },
     });
-
-    const app = createWebhookRoute({
-      config: configWithSecret,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
-    });
+    const app = createWebhookRoute({ secret, runSession: mockRunSession });
 
     const body = JSON.stringify({ data: "signed" });
     const signature = createHmac("sha256", secret).update(body).digest("hex");
@@ -319,13 +203,8 @@ describe("createWebhookRoute", () => {
   });
 
   it("returns 400 for invalid JSON body", async () => {
-    const mockRunSession: RunSessionFn = vi.fn();
-
-    const app = createWebhookRoute({
-      config: mockConfig,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
-    });
+    const mockRunSession = vi.fn();
+    const app = createWebhookRoute({ runSession: mockRunSession });
 
     const res = await app.request("/webhook/test", {
       method: "POST",
@@ -338,13 +217,8 @@ describe("createWebhookRoute", () => {
   });
 
   it("returns 400 for non-object payload (array)", async () => {
-    const mockRunSession: RunSessionFn = vi.fn();
-
-    const app = createWebhookRoute({
-      config: mockConfig,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: mockRunSession,
-    });
+    const mockRunSession = vi.fn();
+    const app = createWebhookRoute({ runSession: mockRunSession });
 
     const res = await app.request("/webhook/test", {
       method: "POST",
@@ -353,7 +227,7 @@ describe("createWebhookRoute", () => {
     });
 
     expect(res.status).toBe(400);
-    const json = (await res.json()) as any;
+    const json = (await res.json()) as Record<string, unknown>;
     expect(json.error).toContain("JSON object");
     expect(mockRunSession).not.toHaveBeenCalled();
   });

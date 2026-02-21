@@ -3,28 +3,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { TaskStore } from "@baseagent/plugin-scheduler";
-import { createTaskScheduler, type TaskSchedulerDeps } from "../scheduler.js";
-import type { RunSessionDeps, RunSessionResult } from "../run-session.js";
-
-function makeSessionResult(output: string): RunSessionResult {
-  return {
-    sessionId: "test-session",
-    output,
-    state: {
-      status: "completed",
-      iteration: 1,
-      totalTokens: 100,
-      promptTokens: 80,
-      completionTokens: 20,
-      estimatedCostUsd: 0.001,
-    } as any,
-  };
-}
+import { createTaskScheduler } from "@baseagent/plugin-scheduler/scheduler";
 
 describe("createTaskScheduler", () => {
   let dir: string;
   let store: TaskStore;
-  const mockSessionDeps = {} as RunSessionDeps;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "scheduler-timer-test-"));
@@ -36,12 +19,8 @@ describe("createTaskScheduler", () => {
   });
 
   it("does nothing when no tasks are due", async () => {
-    const runSessionFn = vi.fn();
-    const scheduler = createTaskScheduler({
-      store,
-      sessionDeps: mockSessionDeps,
-      runSessionFn,
-    });
+    const runSession = vi.fn();
+    const scheduler = createTaskScheduler({ store, runSession });
 
     store.add({
       id: "future-task",
@@ -52,16 +31,15 @@ describe("createTaskScheduler", () => {
     });
 
     await scheduler.tick();
-    expect(runSessionFn).not.toHaveBeenCalled();
+    expect(runSession).not.toHaveBeenCalled();
   });
 
   it("executes due tasks and marks them completed", async () => {
-    const runSessionFn = vi.fn().mockResolvedValue(makeSessionResult("Done checking."));
-    const scheduler = createTaskScheduler({
-      store,
-      sessionDeps: mockSessionDeps,
-      runSessionFn,
+    const runSession = vi.fn().mockResolvedValue({
+      sessionId: "test-session",
+      output: "Done checking.",
     });
+    const scheduler = createTaskScheduler({ store, runSession });
 
     store.add({
       id: "due-task",
@@ -72,18 +50,14 @@ describe("createTaskScheduler", () => {
     });
 
     await scheduler.tick();
-    expect(runSessionFn).toHaveBeenCalledTimes(1);
+    expect(runSession).toHaveBeenCalledTimes(1);
     const tasks = store.getAll();
     expect(tasks[0].status).toBe("completed");
   });
 
   it("marks task as failed when runSession throws", async () => {
-    const runSessionFn = vi.fn().mockRejectedValue(new Error("API down"));
-    const scheduler = createTaskScheduler({
-      store,
-      sessionDeps: mockSessionDeps,
-      runSessionFn,
-    });
+    const runSession = vi.fn().mockRejectedValue(new Error("API down"));
+    const scheduler = createTaskScheduler({ store, runSession });
 
     store.add({
       id: "fail-task",
@@ -100,13 +74,11 @@ describe("createTaskScheduler", () => {
 
   it("sends proactive message when channelId is set", async () => {
     const sendProactiveMessage = vi.fn().mockResolvedValue(undefined);
-    const runSessionFn = vi.fn().mockResolvedValue(makeSessionResult("Weather is sunny."));
-    const scheduler = createTaskScheduler({
-      store,
-      sessionDeps: mockSessionDeps,
-      runSessionFn,
-      sendProactiveMessage,
+    const runSession = vi.fn().mockResolvedValue({
+      sessionId: "test",
+      output: "Weather is sunny.",
     });
+    const scheduler = createTaskScheduler({ store, runSession, sendProactiveMessage });
 
     store.add({
       id: "channel-task",
@@ -122,15 +94,11 @@ describe("createTaskScheduler", () => {
   });
 
   it("prevents overlapping ticks", async () => {
-    let resolveFirst!: (value: RunSessionResult) => void;
-    const runSessionFn = vi.fn().mockImplementation(
-      () => new Promise<RunSessionResult>((resolve) => { resolveFirst = resolve; }),
+    let resolveFirst!: (value: unknown) => void;
+    const runSession = vi.fn().mockImplementation(
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
     );
-    const scheduler = createTaskScheduler({
-      store,
-      sessionDeps: mockSessionDeps,
-      runSessionFn,
-    });
+    const scheduler = createTaskScheduler({ store, runSession });
 
     store.add({
       id: "overlap-task",
@@ -142,22 +110,20 @@ describe("createTaskScheduler", () => {
 
     const firstTick = scheduler.tick();
     await scheduler.tick(); // Should be skipped
-    expect(runSessionFn).toHaveBeenCalledTimes(1);
+    expect(runSession).toHaveBeenCalledTimes(1);
 
-    resolveFirst(makeSessionResult("Done"));
+    resolveFirst({ sessionId: "t", output: "Done" });
     await firstTick;
   });
 
   it("start/stop manage interval", () => {
     const scheduler = createTaskScheduler({
       store,
-      sessionDeps: mockSessionDeps,
-      runSessionFn: vi.fn(),
+      runSession: vi.fn(),
       intervalMs: 60_000,
     });
 
     scheduler.start();
     scheduler.stop();
-    // No assertions needed — just verify it doesn't throw
   });
 });

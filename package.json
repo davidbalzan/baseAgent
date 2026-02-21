@@ -11,6 +11,7 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "dev": "pnpm --filter @baseagent/app run dev",
+    "start": "pnpm --filter @baseagent/app run start",
     "clean": "pnpm -r exec rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest"

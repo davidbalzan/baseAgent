@@ -5,10 +5,8 @@ export type { RunSessionInput, RunSessionDeps, RunSessionResult } from "./run-se
 export { LiveSessionBus } from "./live-stream.js";
 export type { LiveEvent } from "./live-stream.js";
 export { createDashboardApi } from "./dashboard-api.js";
-export { createHeartbeatScheduler } from "./heartbeat.js";
-export { createWebhookRoute } from "./webhook.js";
-export { createTaskScheduler } from "./scheduler.js";
-export type { TaskScheduler } from "./scheduler.js";
+// Heartbeat, webhook, and scheduler are now self-contained plugins.
+// Import from @baseagent/plugin-heartbeat, @baseagent/plugin-webhook, @baseagent/plugin-scheduler.
 export { SlidingWindowLimiter, createRateLimitMiddleware } from "./rate-limit.js";
 
 // Plugin system

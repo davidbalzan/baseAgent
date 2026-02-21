@@ -30,7 +30,7 @@ export function createTelegramPlugin(opts?: TelegramPluginOptions): Plugin {
           content: [
             "# Telegram Plugin",
             "",
-            "Connects the agent to Telegram as a chat channel using the Bot API with long-polling.",
+            "Connects the agent to Telegram as a chat channel using the Bot API.",
             "",
             "## Configuration",
             "",
@@ -41,19 +41,32 @@ export function createTelegramPlugin(opts?: TelegramPluginOptions): Plugin {
             "    token: \"BOT_TOKEN\"        # From @BotFather",
             "    allowedUserIds:            # Optional whitelist",
             "      - \"123456789\"",
+            "    webhook:                   # Optional webhook mode",
+            "      enabled: false           # Set to true to use webhooks",
+            "      url: \"https://yourdomain.com/webhook/telegram\"",
+            "      secret: \"webhook_secret\" # Optional secret token",
             "```",
             "",
             "## How It Works",
             "",
-            "- Uses long-polling to receive messages (no webhook server needed)",
+            "- Uses long-polling by default, or webhook mode if configured",
             "- Messages are routed through the queued handler to prevent concurrent sessions per channel",
             "- Channel IDs are prefixed as `telegram:<chat_id>`",
             "- Supports optional rate limiting via the `rateLimit.channel` config",
             "- If `allowedUserIds` is set, messages from other users are silently ignored",
+            "- Streaming: progressive message edits during generation",
+            "- Governance confirmations: bot sends a prompt and waits for YES/NO reply",
+            "",
+            "## Supported Message Types",
+            "",
+            "- Text, photo, video, audio, voice, document, sticker",
+            "- Animation (GIF), video note (round video)",
+            "- Location (including live location), contact, venue, poll",
+            "- Callback queries (inline keyboard button presses)",
             "",
             "## Lifecycle",
             "",
-            "- **init()** — Validates config, returns empty capabilities",
+            "- **init()** — Validates config, returns capabilities",
             "- **afterInit()** — Creates the `TelegramAdapter`, registers it, and starts polling",
             "- **shutdown()** — Stops the polling loop gracefully",
           ].join("\n"),
@@ -67,7 +80,10 @@ export function createTelegramPlugin(opts?: TelegramPluginOptions): Plugin {
 
       try {
         adapter = new TelegramAdapter(
-          config.token,
+          {
+            token: config.token!,
+            webhook: config.webhook,
+          },
           ctx.queuedHandleMessage,
           config.allowedUserIds,
           opts?.rateLimiter,
@@ -88,3 +104,4 @@ export function createTelegramPlugin(opts?: TelegramPluginOptions): Plugin {
 }
 
 export { TelegramAdapter } from "./telegram/telegram-adapter.js";
+export type { TelegramConfig } from "./telegram/telegram-adapter.js";

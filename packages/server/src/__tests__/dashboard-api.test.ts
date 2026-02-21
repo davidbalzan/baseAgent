@@ -57,6 +57,20 @@ describe("createDashboardApi", () => {
     sessionRepo: mockSessionRepo,
     traceRepo: mockTraceRepo,
     workspacePath: "/tmp/test-workspace",
+    getModelStatus: () => ({
+      fallbackCooldownMs: 1_800_000,
+      fallbackCooldownReasons: ["quota-window", "rate-limit"],
+      chain: [
+        {
+          index: 0,
+          provider: "anthropic",
+          modelId: "claude-opus-4-20250514",
+          inCooldown: false,
+          cooldownUntil: null,
+          cooldownRemainingMs: 0,
+        },
+      ],
+    }),
   });
 
   it("GET /api/sessions returns session list", async () => {
@@ -111,5 +125,16 @@ describe("createDashboardApi", () => {
   it("GET /api/sessions/:id/traces returns 404 for unknown session", async () => {
     const res = await app.request("/api/sessions/unknown/traces");
     expect(res.status).toBe(404);
+  });
+
+  it("GET /api/model/status returns model chain status", async () => {
+    const res = await app.request("/api/model/status");
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.available).toBe(true);
+    expect(json.fallbackCooldownMs).toBe(1_800_000);
+    expect(json.fallbackCooldownReasons).toEqual(["quota-window", "rate-limit"]);
+    expect(json.chain).toHaveLength(1);
+    expect(json.chain[0].provider).toBe("anthropic");
   });
 });

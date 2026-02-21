@@ -35,9 +35,10 @@ export type {
 export { loadConfig } from "./config/loader.js";
 
 // Model
-export { resolveModel, resolveSingleModel } from "./model/resolver.js";
+export { resolveModel, resolveSingleModel, resolveModelWithFallbacks } from "./model/resolver.js";
 export { createFallbackModel } from "./model/fallback-model.js";
-export type { FallbackCallback } from "./model/fallback-model.js";
+export { getFallbackModelStatus } from "./model/fallback-model.js";
+export type { FallbackCallback, FallbackReason, FallbackModelStatusEntry } from "./model/fallback-model.js";
 export { fetchOpenRouterPricing } from "./model/openrouter-pricing.js";
 export { selectModel } from "./model/model-selector.js";
 export type { ModelOption, ModelSelectionResult } from "./model/model-selector.js";
@@ -52,6 +53,8 @@ export { runAgentLoop } from "./loop/agent-loop.js";
 export type { AgentLoopOptions, AgentLoopResult } from "./loop/agent-loop.js";
 export { compactMessages, persistCompactionSummary, decayToolOutputs } from "./loop/compaction.js";
 export type { ToolMessageMeta } from "./loop/compaction.js";
+export { createToolFailureState, processToolResults, TOOL_FAILURE_THRESHOLD, ALL_FAIL_THRESHOLD } from "./loop/tool-failure-tracker.js";
+export type { ToolFailureState, ToolCallResult, FailureRecoveryAction } from "./loop/tool-failure-tracker.js";
 export {
   INJECTION_DEFENSE_PREAMBLE,
   INJECTION_DEFENSE_PREAMBLE_COMPACT,
@@ -72,6 +75,7 @@ export type {
   PluginCapabilities,
   PluginPhase,
   PluginAfterInitContext,
+  RunSessionLikeFn,
   DashboardTab,
   PluginDoc,
   ChannelAdapterLike,

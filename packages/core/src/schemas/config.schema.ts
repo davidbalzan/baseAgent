@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ToolPermissionSchema } from "./tool.schema.js";
+import { FALLBACK_REASON_VALUES } from "../model/fallback-model.js";
 
 // Helper: accept string, null, or undefined — coerce null/empty to undefined
 const optionalString = z
@@ -8,11 +9,20 @@ const optionalString = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
-const LlmProviderSchema = z.enum(["openrouter", "anthropic", "openai", "ollama", "lm-studio"]);
+const LlmProviderSchema = z.enum(["openrouter", "anthropic", "openai", "ollama", "lm-studio", "opencode"]);
 
 const ProviderOverridesSchema = z.object({
-  anthropic: z.object({ apiKey: optionalString }).optional(),
-  openai: z.object({ apiKey: optionalString }).optional(),
+  anthropic: z.object({ apiKey: optionalString, oauthAuthFile: optionalString }).optional(),
+  openai: z.object({ apiKey: optionalString, oauthAuthFile: optionalString }).optional(),
+  opencode: z.object({
+    baseUrl: optionalString,
+    providerId: optionalString,
+    directory: optionalString,
+    timeoutMs: z.number().int().positive().optional(),
+    modelCooldownMs: z.number().int().positive().optional(),
+    modelCooldownReasons: z.array(z.enum(FALLBACK_REASON_VALUES)).optional(),
+    modelFallbacks: z.array(z.string()).optional(),
+  }).optional(),
   ollama: z.object({ baseUrl: optionalString }).optional(),
   lmStudio: z.object({ baseUrl: optionalString }).optional(),
 });
@@ -43,8 +53,11 @@ const LlmConfigSchema = z.object({
   apiKey: optionalString,
   providers: ProviderOverridesSchema.optional(),
   fallbackModels: z.array(FallbackModelSchema).optional(),
+  fallbackCooldownMs: z.number().int().positive().default(1_800_000),
+  fallbackCooldownReasons: z.array(z.enum(FALLBACK_REASON_VALUES)).default(["quota-window", "rate-limit", "auth"]),
   /** Stronger model used for tool-heavy / coding tasks. Omit to disable routing. */
   capableModel: CapableModelSchema.optional(),
+  capableFallbackModels: z.array(FallbackModelSchema).optional(),
   /** Token budget for conversation history. Overrides memory.conversationHistoryTokenBudget. */
   conversationHistoryTokenBudget: z.number().int().positive().optional(),
 }).merge(ModelPricingSchema);
@@ -55,6 +68,17 @@ const ChannelConfigSchema = z.object({
   allowedUserIds: z.array(z.string()).optional(),
 });
 
+const TelegramChannelConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  token: optionalString,
+  allowedUserIds: z.array(z.string()).optional(),
+  webhook: z.object({
+    enabled: z.boolean().default(false),
+    url: optionalString,              // Webhook URL (e.g., "https://yourdomain.com/webhook/telegram")
+    secret: optionalString,           // Optional secret token for webhook security
+  }).optional(),
+});
+
 const SlackChannelConfigSchema = z.object({
   enabled: z.boolean().default(false),
   token: optionalString,            // Bot token (xoxb-)
@@ -63,7 +87,7 @@ const SlackChannelConfigSchema = z.object({
 });
 
 const ChannelsConfigSchema = z.object({
-  telegram: ChannelConfigSchema.optional(),
+  telegram: TelegramChannelConfigSchema.optional(),
   discord: ChannelConfigSchema.optional(),
   slack: SlackChannelConfigSchema.optional(),
 });
@@ -80,13 +104,14 @@ const MemoryConfigSchema = z.object({
   toolOutputDecayIterations: z.number().int().positive().default(3),
   toolOutputDecayThresholdChars: z.number().int().positive().default(500),
   /** Default token budget for conversation history. Can be overridden per-model in llm config. */
-  conversationHistoryTokenBudget: z.number().int().positive().default(40000),
+  conversationHistoryTokenBudget: z.number().int().positive().default(4000),
 });
 
 const HeartbeatConfigSchema = z.object({
   enabled: z.boolean().default(false),
   intervalMs: z.number().int().positive().default(1_800_000), // 30 min
   channelId: optionalString, // e.g., "telegram:12345"
+  reviewIntervalMs: z.number().int().positive().default(21_600_000).optional(), // 6 hours
 });
 
 const WebhookConfigSchema = z.object({
@@ -131,6 +156,11 @@ const SandboxConfigSchema = z.object({
   allowNetwork: z.boolean().optional(),
 });
 
+const DashboardConfigSchema = z.object({
+  /** Bearer token required for /api/* routes. When unset, dashboard is unauthenticated. */
+  secret: optionalString,
+});
+
 const McpServerConfigSchema = z.object({
   name: z.string(),
   command: z.string(),
@@ -165,6 +195,7 @@ export const AppConfigSchema = z.object({
   server: ServerConfigSchema,
   governance: GovernanceConfigSchema.optional(),
   rateLimit: RateLimitConfigSchema.optional(),
+  dashboard: DashboardConfigSchema.optional(),
   sandbox: SandboxConfigSchema.optional(),
   mcp: McpConfigSchema.optional(),
   users: UsersConfigSchema.optional(),

@@ -4,16 +4,15 @@ import type {
   PluginCapabilities,
   PluginAfterInitContext,
 } from "@baseagent/core";
+import { createHeartbeatScheduler, type HeartbeatScheduler } from "./heartbeat.js";
 
-/**
- * Heartbeat plugin — signals that the heartbeat service should be enabled.
- * The actual scheduler is created by the plugin loader in bootstrap since
- * it requires RunSessionDeps (which are server-internal).
- *
- * This plugin's afterInit() is called with a `startHeartbeat` function
- * injected via the plugin loader's extended context.
- */
-export function createHeartbeatPlugin(): Plugin {
+export interface HeartbeatPluginDeps {
+  listDistinctChannels?: () => Array<{ channelId: string; sessionCount: number }>;
+}
+
+export function createHeartbeatPlugin(pluginDeps?: HeartbeatPluginDeps): Plugin {
+  let scheduler: HeartbeatScheduler | null = null;
+
   return {
     name: "heartbeat",
     phase: "services",
@@ -39,6 +38,7 @@ export function createHeartbeatPlugin(): Plugin {
             "  enabled: true",
             "  intervalMs: 1800000          # 30 minutes (default)",
             "  channelId: \"telegram:12345\"  # Optional: send results to a channel",
+            "  reviewIntervalMs: 21600000   # 6 hours (default) — memory review interval",
             "```",
             "",
             "## How It Works",
@@ -48,23 +48,41 @@ export function createHeartbeatPlugin(): Plugin {
             "- If `channelId` is set and the target adapter supports `sendMessage`, results are forwarded to that channel",
             "- The heartbeat timer starts after all plugins are initialized",
             "",
+            "## Memory Review",
+            "",
+            "- After each heartbeat tick, checks if a memory review is due (default: every 6 hours)",
+            "- Reviews recent conversations per active channel using `review_sessions`",
+            "- Writes insights to per-user memory files (USER.md) scoped by channelId",
+            "- Only records NEW insights not already captured",
+            "",
             "## Use Cases",
             "",
             "- Periodic workspace health checks",
             "- Proactive status updates sent to a chat channel",
             "- Scheduled monitoring or reporting tasks",
+            "- Automatic memory consolidation from conversations",
           ].join("\n"),
         }],
       };
     },
 
-    async afterInit(_ctx: PluginAfterInitContext): Promise<void> {
-      // Heartbeat scheduler startup is handled by the plugin loader
-      // after all adapters are ready (it needs sendProactiveMessage).
+    async afterInit(ctx: PluginAfterInitContext): Promise<void> {
+      const runSession = ctx.createSessionRunner();
+      scheduler = createHeartbeatScheduler({
+        intervalMs: ctx.config.heartbeat?.intervalMs ?? 1_800_000,
+        channelId: ctx.config.heartbeat?.channelId,
+        workspacePath: ctx.workspacePath,
+        runSession,
+        sendProactiveMessage: ctx.sendProactiveMessage,
+        reviewIntervalMs: ctx.config.heartbeat?.reviewIntervalMs,
+        listDistinctChannels: pluginDeps?.listDistinctChannels,
+      });
+      scheduler.start();
     },
 
     async shutdown(): Promise<void> {
-      // Cleanup is handled by the plugin loader
+      scheduler?.stop();
+      scheduler = null;
     },
   };
 }

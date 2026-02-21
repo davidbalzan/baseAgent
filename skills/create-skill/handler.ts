@@ -46,8 +46,7 @@ export default function createTool(ctx: SkillContext): ToolDefinition<typeof par
 
       return (
         `Skill "${name}" created at skills/${name}/handler.ts. ` +
-        `A server restart is needed to load it. ` +
-        `Alternatively, use add_mcp_server to add runtime tools without a restart.`
+        `Call the reload_skills tool to load it immediately without a restart.`
       );
     },
   };

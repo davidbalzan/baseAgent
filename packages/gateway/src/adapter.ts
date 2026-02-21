@@ -1,8 +1,22 @@
+export interface IncomingMessageAttachment {
+  kind: string;
+  fileId?: string;
+  mimeType?: string;
+  fileName?: string;
+  fileSize?: number;
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  caption?: string;
+  payload?: Record<string, unknown>;
+}
+
 export interface IncomingMessage {
   text: string;
   channelId: string;
   userId: string;
   messageId: string;
+  attachments?: IncomingMessageAttachment[];
 }
 
 export interface StreamCallbacks {

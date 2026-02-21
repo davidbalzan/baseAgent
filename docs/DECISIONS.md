@@ -18,6 +18,7 @@ ADRs capture context that's easy to forget: why we chose X over Y, what constrai
 | ADR-006 | [Hono for HTTP Layer](#adr-006-hono-for-http-layer) | Accepted | 2026-02-18 |
 | ADR-007 | [Zod for All Validation and Schemas](#adr-007-zod-for-all-validation-and-schemas) | Accepted | 2026-02-18 |
 | ADR-008 | [Plugin Dashboard Extension System](#adr-008-plugin-dashboard-extension-system) | Accepted | 2026-02-20 |
+| ADR-009 | [Self-Contained Plugin Architecture](#adr-009-self-contained-plugin-architecture) | Accepted | 2026-02-21 |
 
 ---
 
@@ -462,6 +463,67 @@ Add a **`DashboardTab`** type to `@baseagent/core` and a `dashboardTabs` field t
 | Conditional hardcoded tab | Simple — one `if` check per tab | Every new plugin requires dashboard changes; hardcoded coupling | Doesn't scale; violates plugin independence |
 | Separate plugin page at `/scheduler` | Full isolation, no injection needed | Loses dashboard integration (tabs, nav, shared styles) | Fragmented UX; users want a single dashboard |
 | iframe-based plugin panels | Full script isolation per plugin | Complex communication, inconsistent styling, performance | Over-engineered; current plugins are trusted |
+
+---
+
+## ADR-009: Self-Contained Plugin Architecture
+
+**Status**: Accepted
+**Date**: 2026-02-21
+**Deciders**: David Balzan
+
+### Context
+
+The heartbeat, webhook, and scheduler features were implemented as "stub" plugins — their `init()` returned documentation or tools, but the actual runtime logic (schedulers, routes, session runners) lived in `bootstrap.ts`. This created several problems:
+
+1. **bootstrap.ts was monolithic** — ~600 lines with heartbeat scheduler creation (lines 355-378), task scheduler setup (lines 380-407), and webhook route wiring (lines 503-530) all hardcoded
+2. **Tight coupling** — `run-session.ts` directly imported `createScheduleTaskTool` from `@baseagent/plugin-scheduler` to create per-session overlays
+3. **Plugin contract violation** — plugins couldn't manage their own lifecycle because `PluginAfterInitContext` lacked the ability to run agent sessions
+4. **Testing difficulty** — testing heartbeat/webhook/scheduler required the full server bootstrap
+
+### Decision
+
+Make heartbeat, webhook, and scheduler **self-contained plugins** that manage their own lifecycle. Extend `PluginAfterInitContext` with two new fields:
+
+```typescript
+interface PluginAfterInitContext extends PluginContext {
+  // ...existing fields...
+  createSessionRunner: () => RunSessionLikeFn;
+  sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
+}
+```
+
+`createSessionRunner()` returns a function that runs agent sessions with auto-allow governance — suitable for background services with no interactive user. `sendProactiveMessage` forwards text to a channel adapter.
+
+**Plugin patterns established:**
+
+1. **Service plugins** (heartbeat, scheduler): `init()` returns tools/docs, `afterInit()` creates and starts the scheduler using `ctx.createSessionRunner()`, `shutdown()` stops it
+2. **Route plugins needing sessions** (webhook): `init()` returns a proxy Hono app, `afterInit()` wires the real implementation — solves the chicken-and-egg problem where routes are collected from `init()` but session runners only exist in `afterInit()`
+3. **Tool decoupling** (scheduler): Added optional `channelId` parameter to `schedule_task` tool, eliminating the per-session overlay pattern in `run-session.ts`
+
+### Consequences
+
+**Positive:**
+- `bootstrap.ts` reduced by ~100 lines — no longer contains heartbeat/webhook/scheduler setup
+- Each plugin is independently testable — mock `createSessionRunner` and `sendProactiveMessage`
+- `run-session.ts` no longer imports from `@baseagent/plugin-scheduler`
+- New background service plugins can follow the established pattern without modifying bootstrap
+- Plugin shutdown is cleaner — each plugin stops its own resources
+
+**Negative:**
+- Proxy Hono app pattern adds a layer of indirection for route plugins
+- `PluginAfterInitContext` interface is now larger (two new fields)
+
+**Risks:**
+- Auto-allow governance in `createSessionRunner` means plugin-initiated sessions bypass confirmation — mitigated by limiting to trusted, config-gated plugins
+
+### Alternatives Considered
+
+| Alternative | Pros | Cons | Why Not |
+|-------------|------|------|---------|
+| Keep bootstrap orchestration | Simple, centralized | Monolithic, hard to test, violates plugin independence | Doesn't scale as plugins grow |
+| Pass raw `sessionDeps` to plugins | Maximum flexibility | Leaks server internals, breaks encapsulation | Too much surface area exposed |
+| Event-based plugin communication | Fully decoupled | Complex, async coordination, harder to debug | Over-engineered for the current plugin count |
 
 ---
 

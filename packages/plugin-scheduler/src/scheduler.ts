@@ -1,7 +1,5 @@
-import { createLogger } from "@baseagent/core";
-import type { SendProactiveMessageFn } from "@baseagent/gateway";
-import { TaskStore, type ScheduledTask } from "@baseagent/plugin-scheduler";
-import { runSession, type RunSessionDeps, type RunSessionResult } from "./run-session.js";
+import { createLogger, type RunSessionLikeFn } from "@baseagent/core";
+import { TaskStore, type ScheduledTask } from "./task-store.js";
 
 const log = createLogger("scheduler");
 
@@ -11,16 +9,10 @@ export interface TaskScheduler {
   tick(): Promise<void>;
 }
 
-export type RunSessionFn = (
-  input: { input: string; channelId?: string },
-  deps: RunSessionDeps,
-) => Promise<RunSessionResult>;
-
 export interface TaskSchedulerDeps {
   store: TaskStore;
-  sessionDeps: RunSessionDeps;
-  sendProactiveMessage?: SendProactiveMessageFn;
-  runSessionFn?: RunSessionFn;
+  runSession: RunSessionLikeFn;
+  sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
   intervalMs?: number;
 }
 
@@ -43,8 +35,7 @@ function buildScheduledTaskPrompt(task: ScheduledTask, now: Date): string {
 }
 
 export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
-  const { store, sessionDeps, sendProactiveMessage } = deps;
-  const runSessionImpl = deps.runSessionFn ?? runSession;
+  const { store, runSession, sendProactiveMessage } = deps;
   const intervalMs = deps.intervalMs ?? 60_000;
 
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -69,10 +60,10 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
 
         try {
           const prompt = buildScheduledTaskPrompt(task, new Date());
-          const result = await runSessionImpl(
-            { input: prompt, channelId: task.channelId ?? "scheduler:internal" },
-            sessionDeps,
-          );
+          const result = await runSession({
+            input: prompt,
+            channelId: task.channelId ?? "scheduler:internal",
+          });
 
           store.updateStatus(task.id, "completed");
           const output = result.output;

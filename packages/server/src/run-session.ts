@@ -35,7 +35,6 @@ import {
   type ConfirmationDelegate,
   type GovernanceRateLimiter,
 } from "@baseagent/tools";
-import { createTaskStoreFromWorkspace, createScheduleTaskTool } from "@baseagent/plugin-scheduler";
 
 const modelLog = createLogger("model");
 const toolsLog = createLogger("tools");
@@ -57,7 +56,7 @@ export interface RunSessionInput {
   conversationHistory?: CoreMessage[];
   /** Reuse an existing session ID (resume). */
   sessionId?: string;
-  initialMessages?: unknown[];
+  initialMessages?: CoreMessage[];
   initialToolMessageMeta?: ToolMessageMeta[];
   initialState?: Partial<LoopState>;
   /** Override the cost cap (e.g. accumulated + additional budget on resume). */
@@ -207,16 +206,8 @@ export async function runSession(
     tools.memory_write = createMemoryWriteTool(workspacePath, userDir) as any;
   }
 
-  // Overlay schedule_task with session-specific channelId so results
-  // are automatically delivered back to the user's channel.
-  if (input.channelId && tools.schedule_task) {
-    const store = createTaskStoreFromWorkspace(workspacePath);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools.schedule_task = createScheduleTaskTool(store, input.channelId) as any;
-    toolsLog.log(`schedule_task overlay: channelId=${input.channelId}`);
-  } else if (input.channelId && !tools.schedule_task) {
-    toolsLog.warn(`schedule_task not found in tools — overlay skipped (channelId=${input.channelId})`);
-  }
+  // Note: schedule_task now accepts an optional channelId parameter directly,
+  // so no per-session overlay is needed. The channelId is passed as a tool argument.
 
   // 4. Build tool executor with governance wrapper.
   //    Resolve from the overlaid `tools` map first, falling back to the registry
@@ -254,6 +245,7 @@ export async function runSession(
       sessionId,
       compactionThreshold: config.memory.compactionThreshold,
       workspacePath,
+      userDir,
       // Aggressive decay for compact model: 2 iterations / 300 chars vs default 6 / 5000.
       toolOutputDecayIterations: useCompactSoul
         ? Math.min(config.memory.toolOutputDecayIterations, 2)
@@ -264,8 +256,7 @@ export async function runSession(
       pricing: selection.pricing,
       compactionModel: deps.capableModel,
       conversationHistory,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      initialMessages: input.initialMessages as any,
+      initialMessages: input.initialMessages,
       initialToolMessageMeta: input.initialToolMessageMeta,
       initialState: input.initialState,
     }, emitter);

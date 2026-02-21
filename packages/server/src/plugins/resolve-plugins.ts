@@ -1,6 +1,11 @@
 import type { AppConfig, Plugin } from "@baseagent/core";
 import type { RateLimiter } from "@baseagent/gateway";
 
+export interface ResolvePluginsDeps {
+  channelRateLimiter?: RateLimiter;
+  listDistinctChannels?: () => Array<{ channelId: string; sessionCount: number }>;
+}
+
 /**
  * Resolve which plugins to load from config.
  * Uses dynamic import() so unused platform SDKs are never loaded.
@@ -11,6 +16,7 @@ import type { RateLimiter } from "@baseagent/gateway";
 export async function resolvePlugins(
   config: AppConfig,
   channelRateLimiter?: RateLimiter,
+  deps?: ResolvePluginsDeps,
 ): Promise<Plugin[]> {
   const plugins: Plugin[] = [];
 
@@ -33,7 +39,9 @@ export async function resolvePlugins(
   // Services
   if (config.heartbeat?.enabled) {
     const { createHeartbeatPlugin } = await import("@baseagent/plugin-heartbeat");
-    plugins.push(createHeartbeatPlugin());
+    plugins.push(createHeartbeatPlugin({
+      listDistinctChannels: deps?.listDistinctChannels,
+    }));
   }
 
   // Scheduler (always loaded — tools are harmless)

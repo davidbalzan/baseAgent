@@ -1,21 +1,23 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-interface MemoryFile {
+export interface MemoryFile {
   name: string;
   filename: string;
   priority: number;
   /** If true, loaded from userDir when provided; otherwise from workspacePath. */
   perUser: boolean;
+  /** Human-readable description (used in dashboard UI). */
+  description: string;
 }
 
-const MEMORY_FILES: MemoryFile[] = [
-  { name: "Soul", filename: "SOUL.md", priority: 1, perUser: false },
-  { name: "Context", filename: "CONTEXT.md", priority: 2, perUser: false },
-  { name: "Personality", filename: "PERSONALITY.md", priority: 3, perUser: false },
-  { name: "User", filename: "USER.md", priority: 4, perUser: true },
-  { name: "Memory", filename: "MEMORY.md", priority: 5, perUser: true },
-  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 6, perUser: false },
+export const MEMORY_FILES: MemoryFile[] = [
+  { name: "Soul", filename: "SOUL.md", priority: 1, perUser: false, description: "Core identity, name, values" },
+  { name: "Context", filename: "CONTEXT.md", priority: 2, perUser: false, description: "Situational context and environment" },
+  { name: "Personality", filename: "PERSONALITY.md", priority: 3, perUser: false, description: "Tone, style, communication patterns" },
+  { name: "User", filename: "USER.md", priority: 4, perUser: true, description: "User preferences, context" },
+  { name: "Memory", filename: "MEMORY.md", priority: 5, perUser: true, description: "Agent's long-term memories" },
+  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 6, perUser: false, description: "Scheduled task definitions" },
 ];
 
 function estimateTokens(text: string): number {

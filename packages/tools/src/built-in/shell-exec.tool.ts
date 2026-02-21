@@ -10,6 +10,14 @@ const parameters = z.object({
   command: z
     .string()
     .describe("The shell command to execute."),
+  scope: z
+    .enum(["workspace", "project"])
+    .optional()
+    .default("workspace")
+    .describe(
+      "Working directory scope. `workspace` (default) runs in the workspace directory. " +
+      "`project` runs in the project (repo) root — useful for git, builds, running tests, etc.",
+    ),
   timeoutMs: z
     .number()
     .int()
@@ -20,16 +28,22 @@ const parameters = z.object({
     .describe(`Command timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS}, max ${MAX_TIMEOUT_MS}).`),
 });
 
-export function createShellExecTool(workspacePath: string): ToolDefinition<typeof parameters> {
+export function createShellExecTool(workspacePath: string, projectRootPath?: string): ToolDefinition<typeof parameters> {
   return {
     name: "shell_exec",
     description:
-      "Execute a shell command in the workspace directory. Runs with a filtered environment (no API keys exposed). Use for system info, builds, git, package managers, scripts, or any CLI task.",
+      "Execute a shell command. Runs in the workspace directory by default. " +
+      "Set scope=`project` to run in the project (repo) root — useful for git, pnpm, builds, and inspecting source code. " +
+      "Runs with a filtered environment (no API keys exposed).",
     parameters,
     permission: "exec",
     timeoutMs: 60_000,
     maxOutputChars: 20_000,
     execute: async (args) => {
+      const cwd = args.scope === "project"
+        ? (projectRootPath ?? workspacePath)
+        : workspacePath;
+
       const safeEnv = createSafeEnv();
 
       return new Promise<string>((resolve) => {
@@ -40,7 +54,7 @@ export function createShellExecTool(workspacePath: string): ToolDefinition<typeo
           "/bin/sh",
           ["-c", args.command],
           {
-            cwd: workspacePath,
+            cwd,
             env: safeEnv,
             signal: ac.signal,
             maxBuffer: 1024 * 1024, // 1 MB
@@ -54,7 +68,8 @@ export function createShellExecTool(workspacePath: string): ToolDefinition<typeo
             }
 
             const exitCode = error?.code ?? 0;
-            let output = `[exit: ${exitCode}]\n${stdout}`;
+            const scopeTag = args.scope === "project" ? " [project]" : "";
+            let output = `[exit: ${exitCode}]${scopeTag}\n${stdout}`;
             if (stderr) {
               output += `\n[stderr]\n${stderr}`;
             }

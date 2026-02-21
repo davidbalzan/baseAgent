@@ -2,25 +2,50 @@ import { resolve, normalize, sep, basename } from "node:path";
 import { realpathSync, lstatSync } from "node:fs";
 
 /**
- * Resolve a user-supplied path against the workspace root,
- * ensuring it cannot escape via traversal (../) or symlinks.
+ * Path scope — determines which root a path is resolved against.
+ * - `"workspace"` → `workspace/` directory (read+write, default)
+ * - `"project"`   → repo root directory (read-only for file tools)
+ */
+export type PathScope = "workspace" | "project";
+
+/**
+ * Result of parsing a user-supplied path that may include a `project:` prefix.
+ */
+export interface ScopedPath {
+  scope: PathScope;
+  /** Path with prefix stripped. */
+  relativePath: string;
+}
+
+/**
+ * Parse a user path for an optional `project:` prefix.
+ * - `"project:packages/core/src/index.ts"` → `{ scope: "project", relativePath: "packages/core/src/index.ts" }`
+ * - `"foo.txt"` → `{ scope: "workspace", relativePath: "foo.txt" }`
+ */
+export function parseScopedPath(userPath: string): ScopedPath {
+  if (userPath.startsWith("project:")) {
+    return { scope: "project", relativePath: userPath.slice("project:".length) };
+  }
+  return { scope: "workspace", relativePath: userPath };
+}
+
+/**
+ * Resolve a path against a given root directory with sandbox enforcement.
+ * Ensures the resolved path cannot escape via traversal (../) or symlinks.
  * Returns the resolved absolute path or throws.
  */
-export function resolveWorkspacePath(
-  workspacePath: string,
-  userPath: string,
-): string {
-  // Reject absolute paths — force everything relative to workspace
+function resolveSandboxedPath(rootDir: string, userPath: string, scopeLabel: string): string {
+  // Reject absolute paths — force everything relative to root
   if (userPath.startsWith("/") || userPath.startsWith("\\")) {
     throw new Error(`Access denied: absolute paths are not allowed ("${userPath}")`);
   }
 
-  const resolved = normalize(resolve(workspacePath, userPath));
-  const workspacePrefix = normalize(workspacePath) + sep;
+  const resolved = normalize(resolve(rootDir, userPath));
+  const rootPrefix = normalize(rootDir) + sep;
 
-  // Allow exact workspace root or anything under it
-  if (resolved !== normalize(workspacePath) && !resolved.startsWith(workspacePrefix)) {
-    throw new Error(`Access denied: path escapes workspace ("${userPath}")`);
+  // Allow exact root or anything under it
+  if (resolved !== normalize(rootDir) && !resolved.startsWith(rootPrefix)) {
+    throw new Error(`Access denied: path escapes ${scopeLabel} ("${userPath}")`);
   }
 
   // Check symlink targets don't escape
@@ -28,8 +53,8 @@ export function resolveWorkspacePath(
     const stat = lstatSync(resolved);
     if (stat.isSymbolicLink()) {
       const real = realpathSync(resolved);
-      if (!real.startsWith(workspacePrefix) && real !== normalize(workspacePath)) {
-        throw new Error(`Access denied: symlink target escapes workspace ("${userPath}")`);
+      if (!real.startsWith(rootPrefix) && real !== normalize(rootDir)) {
+        throw new Error(`Access denied: symlink target escapes ${scopeLabel} ("${userPath}")`);
       }
     }
   } catch (err) {
@@ -40,6 +65,49 @@ export function resolveWorkspacePath(
   }
 
   return resolved;
+}
+
+/**
+ * Resolve a user-supplied path against the workspace root,
+ * ensuring it cannot escape via traversal (../) or symlinks.
+ * Returns the resolved absolute path or throws.
+ */
+export function resolveWorkspacePath(
+  workspacePath: string,
+  userPath: string,
+): string {
+  return resolveSandboxedPath(workspacePath, userPath, "workspace");
+}
+
+/**
+ * Resolve a user-supplied path against the project (repo) root,
+ * ensuring it cannot escape via traversal (../) or symlinks.
+ * Returns the resolved absolute path or throws.
+ */
+export function resolveProjectPath(
+  projectRootPath: string,
+  userPath: string,
+): string {
+  return resolveSandboxedPath(projectRootPath, userPath, "project");
+}
+
+/**
+ * Resolve a scoped path (with optional `project:` prefix) against the appropriate root.
+ * If `projectRootPath` is undefined and a project scope is requested, throws.
+ */
+export function resolveScopedPath(
+  workspacePath: string,
+  projectRootPath: string | undefined,
+  userPath: string,
+): { resolved: string; scope: PathScope } {
+  const { scope, relativePath } = parseScopedPath(userPath);
+  if (scope === "project") {
+    if (!projectRootPath) {
+      throw new Error("Access denied: project root not configured — project: prefix is not available.");
+    }
+    return { resolved: resolveProjectPath(projectRootPath, relativePath), scope };
+  }
+  return { resolved: resolveWorkspacePath(workspacePath, relativePath), scope };
 }
 
 /**

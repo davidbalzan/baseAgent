@@ -375,7 +375,55 @@ export function createSelfEnhancePlugin(config?: SelfEnhanceConfig): Plugin {
       };
 
       ctx.log("Plugin enabled");
-      return { tools: [tool] };
+      return {
+        tools: [tool],
+        docs: [{
+          title: "Self-Enhance",
+          filename: "SELF_ENHANCE.md",
+          content: [
+            "# Self-Enhance Plugin",
+            "",
+            "Allows the agent to safely modify its own codebase — creating new skills, editing files, running tests, and merging changes — all in an isolated git worktree.",
+            "",
+            "## Tool: `self_enhance`",
+            "",
+            "A multi-action tool (`permission: exec`) with the following actions:",
+            "",
+            "| Action | Description |",
+            "|--------|-------------|",
+            "| `start` | Create an isolated worktree and begin an enhancement session |",
+            "| `write_file` | Write or append to a file in the worktree |",
+            "| `read_file` | Read a file from the worktree |",
+            "| `edit_file` | Exact-string-replace edit in the worktree |",
+            "| `list_files` | List files in a worktree directory |",
+            "| `test` | Run typecheck + tests (optionally in Docker) |",
+            "| `apply` | Commit and merge changes into the current branch |",
+            "| `abort` | Discard all changes and clean up the worktree |",
+            "",
+            "## Workflow",
+            "",
+            "1. `start` — Creates a git worktree on a temporary branch",
+            "2. `write_file` / `edit_file` — Make changes in isolation",
+            "3. `test` — Validate with `pnpm install && typecheck && test`",
+            "4. `apply` — Merge into main branch (requires tests to pass first)",
+            "",
+            "If anything goes wrong, `abort` cleans up the worktree and branch.",
+            "",
+            "## Safety",
+            "",
+            "- **Protected paths**: Changes to `packages/core/` are blocked on apply",
+            "- **Test gate**: `apply` refuses if the last test run did not pass",
+            "- **Isolation**: All changes happen in a separate worktree — main branch is untouched until merge",
+            "- **Skill hot-reload**: New skills created via `apply` are automatically hot-reloaded",
+            "",
+            "## Configuration",
+            "",
+            "| Option | Default | Description |",
+            "|--------|---------|-------------|",
+            "| `useDocker` | `false` | Run tests inside a Docker container for additional isolation |",
+          ].join("\n"),
+        }],
+      };
     },
 
     async shutdown(): Promise<void> {

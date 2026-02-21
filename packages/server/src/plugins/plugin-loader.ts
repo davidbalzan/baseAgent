@@ -9,6 +9,7 @@ import {
   type DashboardTab,
   type PluginDoc,
   type HandleMessageFnLike,
+  type RunSessionLikeFn,
 } from "@baseagent/core";
 import type { Hono } from "hono";
 
@@ -21,7 +22,14 @@ export interface PluginLoadResult {
   docs: PluginDoc[];
   enabledPlugins: Plugin[];
   /** Call afterInit() on all plugins once handleMessage is ready. */
-  afterInit(handleMessage: HandleMessageFnLike, queuedHandleMessage: HandleMessageFnLike): Promise<void>;
+  afterInit(
+    handleMessage: HandleMessageFnLike,
+    queuedHandleMessage: HandleMessageFnLike,
+    extras?: {
+      createSessionRunner: () => RunSessionLikeFn;
+      sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
+    },
+  ): Promise<void>;
   /** Shutdown all plugins in reverse order. */
   shutdown(): Promise<void>;
 }
@@ -110,7 +118,15 @@ export async function loadPlugins(
     docs,
     enabledPlugins,
 
-    async afterInit(handleMessage: HandleMessageFnLike, queuedHandleMessage: HandleMessageFnLike): Promise<void> {
+    async afterInit(
+      handleMessage: HandleMessageFnLike,
+      queuedHandleMessage: HandleMessageFnLike,
+      extras?: {
+        createSessionRunner: () => RunSessionLikeFn;
+        sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
+      },
+    ): Promise<void> {
+      const noop: RunSessionLikeFn = async () => ({ sessionId: "", output: "" });
       const afterCtx: PluginAfterInitContext = {
         ...ctx,
         getAdapter: (prefix: string) => adaptersByPrefix.get(prefix),
@@ -121,6 +137,8 @@ export async function loadPlugins(
           adapters.push(adapter);
           adaptersByPrefix.set(adapter.name, adapter);
         },
+        createSessionRunner: extras?.createSessionRunner ?? (() => noop),
+        sendProactiveMessage: extras?.sendProactiveMessage,
       };
 
       for (const plugin of enabledPlugins) {
