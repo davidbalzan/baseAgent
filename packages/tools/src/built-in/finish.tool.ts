@@ -10,7 +10,7 @@ const parameters = z.object({
 export const finishTool: ToolDefinition<typeof parameters> = {
   name: "finish",
   description:
-    "Signal that the current task is complete. Call this when you have finished fulfilling the user's request. Provide a summary of what was accomplished.",
+    "Signal task completion. Provide a summary of what was accomplished.",
   parameters,
   permission: "read",
   execute: async (args) => {

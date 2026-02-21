@@ -243,6 +243,57 @@ const myTool: ToolDefinition = {
 
 Skills without a `group` are always included.
 
+### Skills vs Plugins vs Built-in Tools
+
+baseAgent has three extension mechanisms. Each serves a different scope:
+
+| | Skills | Plugins | Built-in Tools |
+|---|---|---|---|
+| **Location** | `skills/<name>/handler.ts` | `packages/plugin-<name>/` | `packages/tools/src/` |
+| **What it provides** | A single tool | Tools + routes + adapters + dashboard tabs + docs | Core platform tools |
+| **Setup** | Drop a file, restart | Package + monorepo wiring + resolve-plugins entry | Hardcoded in source |
+| **Config gating** | None (always loaded) | Config-driven (can return `null` from `init()`) | Always loaded |
+| **Access to** | `workspacePath` | Full `PluginContext` (config, adapters, tools, logging) | Direct internal access |
+| **Lifecycle hooks** | None | `init()` → `afterInit()` → `shutdown()` | None |
+
+#### When to use a Skill
+
+Use a skill when you need a **single tool the agent can call** — a function with inputs, outputs, and a permission level. Skills are the fastest way to extend the agent. No package.json, no monorepo wiring, no imports.
+
+Good fit for skills:
+- API integrations (weather, stock prices, notifications)
+- Project-specific queries (read a plan file, query a database)
+- Utilities (calculators, formatters, data transformers)
+- Prototyping a tool before promoting it to a plugin
+
+#### When to use a Plugin
+
+Use a plugin when you need **anything beyond a single tool**:
+
+| If you need... | Use a Plugin |
+|---|---|
+| A messaging channel (Telegram, Slack, web chat) | Channel adapter via `afterInit()` + `registerAdapter()` |
+| HTTP endpoints (REST API, SSE, webhooks) | Hono routes via `init()` return |
+| A dashboard tab | `dashboardTabs` via `init()` return |
+| Background services (scheduler, heartbeat) | Long-running logic in `afterInit()` |
+| Access to `handleMessage` / `queuedHandleMessage` | Only available in `PluginAfterInitContext` |
+| Graceful shutdown logic | `shutdown()` lifecycle hook |
+| Multiple tools that share state | Closure over shared state in the plugin factory |
+
+#### When to use a Built-in Tool
+
+Only for core platform functionality that every agent needs (finish, think, memory_read/write, file operations, shell_exec, web_fetch). You shouldn't need to add built-in tools unless you're extending the core platform itself.
+
+#### Promotion path
+
+A common pattern is to **start with a skill**, then **promote to a plugin** when it outgrows a single tool:
+
+1. `skills/weather/handler.ts` — simple weather lookup tool
+2. Needs grow: you want a dashboard tab showing weather history, an HTTP endpoint for webhooks, and background polling
+3. Promote to `packages/plugin-weather/` with tools + routes + dashboard tab
+
+See [PLUGINS.md](PLUGINS.md) for the full plugin development guide.
+
 ---
 
 ## 5. MCP Servers

@@ -24,7 +24,7 @@ export function createAddMcpServerTool(ctx: AddMcpServerContext): ToolDefinition
   return {
     name: "add_mcp_server",
     description:
-      "Connect a new MCP server at runtime, register its tools immediately into your active toolset, and persist the config so it survives restart. Use this whenever you need a capability you don't currently have — search for an appropriate MCP package on npm and add it.",
+      "Connect a new MCP server at runtime. Tools are available immediately and config persists across restarts.",
     parameters,
     permission: "write",
     execute: async (args) => {

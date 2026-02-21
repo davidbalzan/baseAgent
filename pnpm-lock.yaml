@@ -29,6 +29,9 @@ importers:
       '@baseagent/plugin-scheduler':
         specifier: workspace:*
         version: link:../plugin-scheduler
+      '@baseagent/plugin-self-enhance':
+        specifier: workspace:*
+        version: link:../plugin-self-enhance
       '@baseagent/plugin-slack':
         specifier: workspace:*
         version: link:../plugin-slack
@@ -180,6 +183,19 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/plugin-self-enhance:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/plugin-slack:
     dependencies:
       '@baseagent/core':
@@ -248,6 +264,9 @@ importers:
       '@baseagent/plugin-scheduler':
         specifier: workspace:*
         version: link:../plugin-scheduler
+      '@baseagent/plugin-self-enhance':
+        specifier: workspace:*
+        version: link:../plugin-self-enhance
       '@baseagent/plugin-slack':
         specifier: workspace:*
         version: link:../plugin-slack

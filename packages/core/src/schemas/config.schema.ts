@@ -8,12 +8,13 @@ const optionalString = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
-const LlmProviderSchema = z.enum(["openrouter", "anthropic", "openai", "ollama"]);
+const LlmProviderSchema = z.enum(["openrouter", "anthropic", "openai", "ollama", "lm-studio"]);
 
 const ProviderOverridesSchema = z.object({
   anthropic: z.object({ apiKey: optionalString }).optional(),
   openai: z.object({ apiKey: optionalString }).optional(),
   ollama: z.object({ baseUrl: optionalString }).optional(),
+  lmStudio: z.object({ baseUrl: optionalString }).optional(),
 });
 
 const ModelPricingSchema = z.object({

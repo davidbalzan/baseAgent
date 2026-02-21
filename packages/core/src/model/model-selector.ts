@@ -11,6 +11,8 @@ const CAPABLE_KEYWORDS = [
   "architecture", "design", "algorithm",
   // Deep analysis — genuinely complex tasks
   "analyze", "summarize", "scrape",
+  // Self-modification — always route to capable model
+  "enhance",
 ];
 
 export interface ModelOption {

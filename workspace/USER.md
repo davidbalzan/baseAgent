@@ -1,6 +1,12 @@
 # User Profile
 
-> **What does the agent know about its user?**
+> Personal information about this user. The agent reads this at every session start
+> and should write new facts here immediately via `memory_write` when learned.
+
+## Identity
+
+- **Name**: David Balzan
+- **Role**: Creator — David built you. He designed and implemented your architecture, plugin system, memory layer, and every package in this monorepo.
 
 ## Preferences
 
@@ -9,9 +15,5 @@
 
 ## Notes
 
-_Populated over time as the agent learns about its user._
-
-
-## 2026-02-18T19:05:07.949Z
-
-The agent's name is Link.
+_The agent should proactively ask for and record: location, timezone, work context,
+regular routines, and any other facts that help provide better service._

@@ -27,6 +27,8 @@ How to build plugins for baseAgent. Plugins are the primary extension mechanism 
 
 A plugin is a TypeScript module that implements the `Plugin` interface from `@baseagent/core`. Plugins are loaded at server startup, sorted by phase, and each is given a `PluginContext` to interact with the system.
 
+> **Skills vs Plugins:** If you only need a single tool, use a [skill](CAPABILITIES.md#4-skills-system) instead — drop a `handler.ts` into `skills/` and restart. Plugins are for when you need routes, adapters, dashboard tabs, lifecycle hooks, or shared state across multiple tools. See [Skills vs Plugins](CAPABILITIES.md#skills-vs-plugins-vs-built-in-tools) for the full comparison.
+
 Plugins can contribute:
 
 | Capability | How | Example |
@@ -600,11 +602,13 @@ Reference implementations to learn from:
 | Telegram | `@baseagent/plugin-telegram` | `adapters` | Channel adapter |
 | Discord | `@baseagent/plugin-discord` | `adapters` | Channel adapter |
 | Slack | `@baseagent/plugin-slack` | `adapters` | Channel adapter |
+| Chat | `@baseagent/plugin-chat` | `adapters` | Channel adapter + SSE routes + dashboard tab |
 | Webhook | `@baseagent/plugin-webhook` | `routes` | Signals webhook route |
 | Heartbeat | `@baseagent/plugin-heartbeat` | `services` | Signals heartbeat scheduler |
 | Scheduler | `@baseagent/plugin-scheduler` | `services` | Tools + routes + dashboard tab |
+| Docs | `@baseagent/plugin-docs` | `routes` | Routes + dashboard tab |
 
-The **scheduler plugin** is the most complete example — it demonstrates tools, HTTP routes, and a dashboard tab all in one plugin. Start there if you're building something similar.
+The **scheduler plugin** is the most complete example — it demonstrates tools, HTTP routes, and a dashboard tab all in one plugin. The **chat plugin** is the best example of a channel adapter with SSE streaming and governance support. Start with either if you're building something similar.
 
 ---
 

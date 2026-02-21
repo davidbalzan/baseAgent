@@ -22,6 +22,8 @@ export interface AgentLoopOptions {
   toolOutputDecayThresholdChars?: number;
   /** Pricing rates for cost estimation. Falls back to conservative defaults if omitted. */
   pricing?: ModelPricing;
+  /** Stronger model used for compaction summarization. Falls back to the loop model if omitted. */
+  compactionModel?: LanguageModel;
   /** Prior exchanges from previous sessions on the same channel, injected before the current input. */
   conversationHistory?: CoreMessage[];
   /** Pre-existing message history for resume. When set, the `input` param is unused. */
@@ -97,6 +99,7 @@ export async function runAgentLoop(
     workspacePath,
     toolOutputDecayIterations,
     toolOutputDecayThresholdChars,
+    compactionModel,
     pricing,
     conversationHistory,
     initialMessages,
@@ -310,9 +313,10 @@ export async function runAgentLoop(
         );
       }
 
-      // Auto-compaction: summarize history when context exceeds threshold
+      // Auto-compaction: summarize history when context exceeds threshold.
+      // Use the capable model for summarization when available (better summaries, cheaper model handles the loop).
       if (compactionThreshold && usage.promptTokens >= compactionThreshold) {
-        const { summary, compactedMessages } = await compactMessages(model, messages, systemPrompt);
+        const { summary, compactedMessages } = await compactMessages(compactionModel ?? model, messages, systemPrompt);
         messages.length = 0;
         messages.push(...compactedMessages);
         // Compaction replaces all messages with a summary. Pre-compaction tool metadata

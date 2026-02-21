@@ -3,6 +3,7 @@ import {
   runAgentLoop,
   LoopEmitter,
   INJECTION_DEFENSE_PREAMBLE,
+  INJECTION_DEFENSE_PREAMBLE_COMPACT,
   detectSystemPromptLeakage,
   selectModel,
   createLogger,
@@ -119,9 +120,13 @@ export async function runSession(
 
   // Hot-reload memory files on every session so edits to SOUL.md etc. take
   // effect immediately without a server restart (MM-5).
+  // Use compact soul for the default (cheap) model, full soul for the capable model.
   // Prepend the injection defense preamble so the model treats <user_input>
   // tagged content as untrusted (GV-6).
-  const memoryContent = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget, userDir);
+  const useCompactSoul = !selection.routed && !!deps.capableModel;
+  const memoryContent = loadMemoryFiles(workspacePath, config.memory.maxTokenBudget, userDir, {
+    compact: useCompactSoul,
+  });
   const now = new Date();
   const isoNow = now.toISOString();
   const tzOffsetMin = -now.getTimezoneOffset();
@@ -130,7 +135,31 @@ export async function runSession(
   const tzM = String(Math.abs(tzOffsetMin) % 60).padStart(2, "0");
   const tzLabel = `UTC${tzSign}${tzH}:${tzM}`;
   const dateStamp = `Current date: ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Current time: ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })} (${tzLabel}). ISO timestamp: ${isoNow}.`;
-  const systemPrompt = `${INJECTION_DEFENSE_PREAMBLE}\n\n${dateStamp}\n\n${memoryContent}`;
+  const preamble = useCompactSoul ? INJECTION_DEFENSE_PREAMBLE_COMPACT : INJECTION_DEFENSE_PREAMBLE;
+  const systemPrompt = `${preamble}\n\n${dateStamp}\n\n${memoryContent}`;
+
+  // Trim conversation history for compact model to save context window.
+  // The full budget (40K) is excessive for cheap models — cap at ~6K tokens.
+  let conversationHistory = input.conversationHistory;
+  if (useCompactSoul && conversationHistory?.length) {
+    const COMPACT_HISTORY_TOKEN_BUDGET = 6000;
+    let tokens = 0;
+    let keepFrom = 0;
+    // Walk backwards (newest first) to preserve most recent context.
+    for (let i = conversationHistory.length - 1; i >= 0; i--) {
+      const msg = conversationHistory[i];
+      const len = typeof msg.content === "string" ? msg.content.length : JSON.stringify(msg.content).length;
+      tokens += Math.ceil(len / 4);
+      if (tokens > COMPACT_HISTORY_TOKEN_BUDGET) {
+        keepFrom = i + 1;
+        break;
+      }
+    }
+    if (keepFrom > 0) {
+      conversationHistory = conversationHistory.slice(keepFrom);
+      modelLog.log(`Compact mode: trimmed conversation history to ${conversationHistory.length} messages (~${tokens} tokens)`);
+    }
+  }
 
   // 1. Create or reuse session (record the actual routed model, not the default)
   const sessionId = input.sessionId ?? sessionRepo.create({
@@ -164,7 +193,7 @@ export async function runSession(
 
   // 3. Select and overlay tools BEFORE building executor so the executor
   //    resolves overlaid versions (schedule_task with channelId, per-user memory).
-  const { tools, selectedCount, totalCount, activeGroups } = selectTools(input.input, registry.getAll());
+  const { tools, selectedCount, totalCount, activeGroups } = selectTools(input.input, registry.getAll(), workspacePath);
   if (selectedCount < totalCount) {
     toolsLog.log(`Filtered ${selectedCount}/${totalCount} tools for session` +
       (activeGroups.length ? ` (groups: ${activeGroups.join(", ")})` : ""));
@@ -225,10 +254,16 @@ export async function runSession(
       sessionId,
       compactionThreshold: config.memory.compactionThreshold,
       workspacePath,
-      toolOutputDecayIterations: config.memory.toolOutputDecayIterations,
-      toolOutputDecayThresholdChars: config.memory.toolOutputDecayThresholdChars,
+      // Aggressive decay for compact model: 2 iterations / 300 chars vs default 6 / 5000.
+      toolOutputDecayIterations: useCompactSoul
+        ? Math.min(config.memory.toolOutputDecayIterations, 2)
+        : config.memory.toolOutputDecayIterations,
+      toolOutputDecayThresholdChars: useCompactSoul
+        ? Math.min(config.memory.toolOutputDecayThresholdChars, 300)
+        : config.memory.toolOutputDecayThresholdChars,
       pricing: selection.pricing,
-      conversationHistory: input.conversationHistory,
+      compactionModel: deps.capableModel,
+      conversationHistory,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initialMessages: input.initialMessages as any,
       initialToolMessageMeta: input.initialToolMessageMeta,

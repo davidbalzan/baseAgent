@@ -17,6 +17,7 @@
     "@baseagent/plugin-webhook": "workspace:*",
     "@baseagent/plugin-scheduler": "workspace:*",
     "@baseagent/plugin-chat": "workspace:*",
+    "@baseagent/plugin-self-enhance": "workspace:*",
     "@hono/node-server": "^1.14.0"
   },
   "devDependencies": {

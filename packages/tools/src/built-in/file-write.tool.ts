@@ -22,7 +22,7 @@ export function createFileWriteTool(workspacePath: string): ToolDefinition<typeo
   return {
     name: "file_write",
     description:
-      "Write or create a file in the workspace. By default overwrites the file; set append=true to append instead. Parent directories are created automatically.",
+      "Write or create a file in the workspace. Overwrites by default; set append=true to append. Creates parent directories automatically.",
     parameters,
     permission: "write",
     timeoutMs: 5_000,

@@ -41,6 +41,13 @@ export async function resolveSingleModel(spec: SingleModelSpec): Promise<Languag
       return ollama(model);
     }
 
+    case "lm-studio": {
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      const baseURL = providers?.lmStudio?.baseUrl ?? "http://localhost:1234/v1";
+      const lmStudio = createOpenAI({ baseURL, apiKey: "lm-studio" });
+      return lmStudio(model);
+    }
+
     default:
       throw new Error(`Unknown LLM provider: ${provider}`);
   }

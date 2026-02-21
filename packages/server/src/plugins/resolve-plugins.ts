@@ -54,5 +54,11 @@ export async function resolvePlugins(
     plugins.push(createWebhookPlugin());
   }
 
+  // Self-enhance (always loaded — tool gated by governance)
+  {
+    const { createSelfEnhancePlugin } = await import("@baseagent/plugin-self-enhance");
+    plugins.push(createSelfEnhancePlugin());
+  }
+
   return plugins;
 }

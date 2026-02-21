@@ -11,10 +11,11 @@ interface MemoryFile {
 
 const MEMORY_FILES: MemoryFile[] = [
   { name: "Soul", filename: "SOUL.md", priority: 1, perUser: false },
-  { name: "Personality", filename: "PERSONALITY.md", priority: 2, perUser: false },
-  { name: "User", filename: "USER.md", priority: 3, perUser: true },
-  { name: "Memory", filename: "MEMORY.md", priority: 4, perUser: true },
-  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 5, perUser: false },
+  { name: "Context", filename: "CONTEXT.md", priority: 2, perUser: false },
+  { name: "Personality", filename: "PERSONALITY.md", priority: 3, perUser: false },
+  { name: "User", filename: "USER.md", priority: 4, perUser: true },
+  { name: "Memory", filename: "MEMORY.md", priority: 5, perUser: true },
+  { name: "Heartbeat", filename: "HEARTBEAT.md", priority: 6, perUser: false },
 ];
 
 function estimateTokens(text: string): number {
@@ -34,22 +35,40 @@ export function parseBotName(workspacePath: string): string {
   }
 }
 
+export interface LoadMemoryOptions {
+  /** Use SOUL_COMPACT.md instead of SOUL.md (for cheaper/smaller models). */
+  compact?: boolean;
+}
+
 /**
  * Load memory files into a combined string for the system prompt.
  *
  * Shared files (SOUL.md, PERSONALITY.md, HEARTBEAT.md) are loaded from workspacePath.
  * Per-user files (USER.md, MEMORY.md) are loaded from userDir when provided,
  * falling back to workspacePath for backward compatibility.
+ *
+ * When `compact` is true, SOUL_COMPACT.md is used instead of SOUL.md
+ * to reduce token usage for cheaper models.
  */
 export function loadMemoryFiles(
   workspacePath: string,
   maxTokenBudget: number,
   userDir?: string,
+  options?: LoadMemoryOptions,
 ): string {
   const sections: string[] = [];
   let tokenCount = 0;
 
-  for (const file of MEMORY_FILES) {
+  // Build the file list, swapping soul file when compact mode is on
+  const files = options?.compact
+    ? MEMORY_FILES.map((f) =>
+        f.filename === "SOUL.md"
+          ? { ...f, filename: "SOUL_COMPACT.md", name: "Soul (compact)" }
+          : f,
+      )
+    : MEMORY_FILES;
+
+  for (const file of files) {
     let filePath: string;
     if (file.perUser && userDir) {
       // Try per-user dir first, fall back to workspace root

@@ -24,7 +24,7 @@ export function createShellExecTool(workspacePath: string): ToolDefinition<typeo
   return {
     name: "shell_exec",
     description:
-      "Execute a shell command in the workspace directory. The command runs with a filtered environment (no API keys). Use for any task that can be accomplished via the command line: system info (date, uname, whoami), file operations, build tools, git, package managers, network checks, and more.",
+      "Execute a shell command in the workspace directory. Runs with a filtered environment (no API keys exposed). Use for system info, builds, git, package managers, scripts, or any CLI task.",
     parameters,
     permission: "exec",
     timeoutMs: 60_000,

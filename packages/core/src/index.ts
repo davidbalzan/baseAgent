@@ -54,6 +54,7 @@ export { compactMessages, persistCompactionSummary, decayToolOutputs } from "./l
 export type { ToolMessageMeta } from "./loop/compaction.js";
 export {
   INJECTION_DEFENSE_PREAMBLE,
+  INJECTION_DEFENSE_PREAMBLE_COMPACT,
   wrapUserInput,
   detectInjectionAttempt,
   detectSystemPromptLeakage,

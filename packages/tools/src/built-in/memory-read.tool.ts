@@ -22,7 +22,7 @@ export function createMemoryReadTool(workspacePath: string, userDir?: string): T
   return {
     name: "memory_read",
     description:
-      "Read the contents of one of the agent's memory files. Available files: SOUL.md (identity & boundaries), PERSONALITY.md (voice & character), USER.md (user preferences), MEMORY.md (accumulated context), HEARTBEAT.md (scheduled tasks).",
+      "Read one of the agent's memory files (SOUL, PERSONALITY, USER, MEMORY, or HEARTBEAT).",
     parameters,
     permission: "read",
     execute: async (args) => {

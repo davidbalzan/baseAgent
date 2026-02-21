@@ -23,6 +23,7 @@
     "@baseagent/plugin-scheduler": "workspace:*",
     "@baseagent/plugin-chat": "workspace:*",
     "@baseagent/plugin-docs": "workspace:*",
+    "@baseagent/plugin-self-enhance": "workspace:*",
     "hono": "^4.7.0",
     "@hono/node-server": "^1.14.0"
   },

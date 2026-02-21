@@ -23,7 +23,7 @@ export function createFileEditTool(workspacePath: string): ToolDefinition<typeof
   return {
     name: "file_edit",
     description:
-      "Edit an existing file by replacing an exact string match. The old_string must appear exactly once in the file. Read the file first to get current content before editing.",
+      "Replace an exact string match in a file. old_string must appear exactly once. Read the file first.",
     parameters,
     permission: "write",
     timeoutMs: 5_000,
