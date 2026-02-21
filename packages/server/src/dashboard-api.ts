@@ -22,6 +22,7 @@ export interface DashboardApiDeps {
   /** Runtime model/fallback status for dashboard observability. */
   getModelStatus?: () => {
     chain: FallbackModelStatusEntry[];
+    capableChain?: FallbackModelStatusEntry[];
     fallbackCooldownMs: number;
     fallbackCooldownReasons: string[];
   };

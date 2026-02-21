@@ -1892,13 +1892,31 @@ async function loadStatus() {
   }
 }
 
+function renderStatusCards(chain, labelPrefix) {
+  return chain.map((entry) => {
+    const remaining = Number(entry.cooldownRemainingMs || 0);
+    const inCooldown = Boolean(entry.inCooldown);
+    const rank = Number(entry.index || 0) + 1;
+    const role = rank === 1 ? (labelPrefix || 'Primary') : `Fallback #${rank - 1}`;
+    return `
+      <div class="status-card ${inCooldown ? 'cooldown' : ''}">
+        <div class="status-kv">${role}</div>
+        <div class="status-model">${escapeHtml(entry.provider)} / ${escapeHtml(entry.modelId)}</div>
+        <span class="status-badge ${inCooldown ? 'cooling' : 'ready'}">${inCooldown ? `Cooling (${formatDuration(remaining)} left)` : 'Ready'}</span>
+        ${inCooldown && entry.cooldownReason ? `<div class="status-kv" style="margin-top:8px">Reason <span class="status-mono">${escapeHtml(entry.cooldownReason)}</span></div>` : ''}
+        ${inCooldown && entry.cooldownUntil ? `<div class="status-kv" style="margin-top:8px">Until <span class="status-mono">${escapeHtml(formatTimestamp(entry.cooldownUntil))}</span></div>` : ''}
+      </div>`;
+  }).join('');
+}
+
 function renderStatus(data) {
   const chain = Array.isArray(data.chain) ? data.chain : [];
+  const capableChain = Array.isArray(data.capableChain) ? data.capableChain : [];
   const cooldownMs = Number(data.fallbackCooldownMs || 0);
   const cooldownReasons = Array.isArray(data.fallbackCooldownReasons) ? data.fallbackCooldownReasons : [];
   const updatedAt = data.updatedAt ? formatTimestamp(data.updatedAt) : '--';
 
-  if (chain.length === 0) {
+  if (chain.length === 0 && capableChain.length === 0) {
     $statusPanel.innerHTML = `
       <div class="status-content">
         <div class="status-header-row">
@@ -1910,6 +1928,12 @@ function renderStatus(data) {
     return;
   }
 
+  const capableSection = capableChain.length > 0 ? `
+      <div class="status-section-label" style="margin-top:20px;margin-bottom:8px;font-size:13px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em">Capable Model</div>
+      <div class="status-grid">
+        ${renderStatusCards(capableChain, 'Capable')}
+      </div>` : '';
+
   $statusPanel.innerHTML = `
     <div class="status-content">
       <div class="status-header-row">
@@ -1917,22 +1941,11 @@ function renderStatus(data) {
         <div class="status-note">Updated ${updatedAt} · Cooldown window ${formatDuration(cooldownMs)} · Reasons ${escapeHtml(cooldownReasons.join(', ') || 'none')}</div>
         <button class="status-refresh-btn" onclick="loadStatus()">Refresh</button>
       </div>
+      <div class="status-section-label" style="margin-bottom:8px;font-size:13px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em">Default Model</div>
       <div class="status-grid">
-        ${chain.map((entry) => {
-          const remaining = Number(entry.cooldownRemainingMs || 0);
-          const inCooldown = Boolean(entry.inCooldown);
-          const rank = Number(entry.index || 0) + 1;
-          const role = rank === 1 ? 'Primary' : `Fallback #${rank - 1}`;
-          return `
-            <div class="status-card ${inCooldown ? 'cooldown' : ''}">
-              <div class="status-kv">${role}</div>
-              <div class="status-model">${escapeHtml(entry.provider)} / ${escapeHtml(entry.modelId)}</div>
-              <span class="status-badge ${inCooldown ? 'cooling' : 'ready'}">${inCooldown ? `Cooling (${formatDuration(remaining)} left)` : 'Ready'}</span>
-              ${inCooldown && entry.cooldownReason ? `<div class="status-kv" style="margin-top:8px">Reason <span class="status-mono">${escapeHtml(entry.cooldownReason)}</span></div>` : ''}
-              ${inCooldown && entry.cooldownUntil ? `<div class="status-kv" style="margin-top:8px">Until <span class="status-mono">${escapeHtml(formatTimestamp(entry.cooldownUntil))}</span></div>` : ''}
-            </div>`;
-        }).join('')}
+        ${renderStatusCards(chain, 'Primary')}
       </div>
+      ${capableSection}
     </div>`;
 }
 

@@ -556,24 +556,30 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     reloadSkills,
     getModelStatus: () => {
       const runtimeChain = getFallbackModelStatus(model);
-      if (runtimeChain) {
-        return {
-          chain: runtimeChain,
-          fallbackCooldownMs: config.llm.fallbackCooldownMs,
-          fallbackCooldownReasons: config.llm.fallbackCooldownReasons,
-        };
-      }
+      const capableChain = capableModel ? getFallbackModelStatus(capableModel) : undefined;
+      const primaryChain = runtimeChain ?? [
+        {
+          index: 0,
+          provider: config.llm.provider,
+          modelId: config.llm.model,
+          inCooldown: false,
+          cooldownUntil: null,
+          cooldownRemainingMs: 0,
+        },
+      ];
+      const capableChainResolved = capableChain ?? (config.llm.capableModel ? [
+        {
+          index: 0,
+          provider: config.llm.capableModel.provider,
+          modelId: config.llm.capableModel.model,
+          inCooldown: false,
+          cooldownUntil: null,
+          cooldownRemainingMs: 0,
+        },
+      ] : undefined);
       return {
-        chain: [
-          {
-            index: 0,
-            provider: config.llm.provider,
-            modelId: config.llm.model,
-            inCooldown: false,
-            cooldownUntil: null,
-            cooldownRemainingMs: 0,
-          },
-        ],
+        chain: primaryChain,
+        capableChain: capableChainResolved,
         fallbackCooldownMs: config.llm.fallbackCooldownMs,
         fallbackCooldownReasons: config.llm.fallbackCooldownReasons,
       };
