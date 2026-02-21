@@ -7,6 +7,7 @@ export const chatDashboardTab: DashboardTab = {
 
   css: `
 .chat-panel {
+  position: relative;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
@@ -72,6 +73,20 @@ export const chatDashboardTab: DashboardTab = {
 }
 .chat-clear-btn:hover { color: var(--text-1); border-color: var(--border-active); }
 
+.chat-session-select {
+  min-width: 220px;
+  max-width: 320px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-1);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  outline: none;
+}
+.chat-session-select:focus { border-color: var(--accent); }
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -117,6 +132,55 @@ export const chatDashboardTab: DashboardTab = {
   padding: 5px 10px;
   border: 1px solid rgba(79,143,255,.12);
 }
+
+.chat-activity-toasts {
+  position: absolute;
+  right: 16px;
+  bottom: 74px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.chat-tool-toast {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-1) 88%, black);
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-1);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .25s ease, transform .25s ease;
+}
+
+.chat-tool-toast.fade {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.chat-tool-toast-title {
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.chat-tool-toast-detail {
+  margin-top: 4px;
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.chat-tool-toast.running { border-color: rgba(79,143,255,.35); }
+.chat-tool-toast.success { border-color: rgba(79,255,143,.35); }
+.chat-tool-toast.error { border-color: rgba(255,79,106,.35); }
+.chat-tool-toast.governance { border-color: rgba(255,159,67,.35); }
 
 .chat-msg.confirmation {
   align-self: flex-start;
@@ -224,10 +288,138 @@ export const chatDashboardTab: DashboardTab = {
   font-size: 12px;
 }
 
+.chat-steps-wrap {
+  width: 100%;
+}
+
+.chat-steps {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-2);
+  padding: 0;
+}
+
+.chat-steps > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-1);
+}
+
+.chat-steps > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-steps > summary::before {
+  content: '\\25B6';
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--text-2);
+  transform: translateY(-1px);
+}
+
+.chat-steps[open] > summary::before {
+  content: '\\25BC';
+}
+
+.chat-steps-body {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.chat-tool-activity > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-tool-count {
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+.chat-tool-events {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-tool-event {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-1);
+}
+
+.chat-tool-event > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.chat-tool-event > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-tool-event-badge {
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  border-radius: 10px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+}
+
+.chat-tool-event-name {
+  font-size: 11px;
+  color: var(--text-1);
+}
+
+.chat-tool-event-time {
+  margin-left: auto;
+  color: var(--text-2);
+  font-size: 10px;
+}
+
+.chat-tool-event-detail {
+  border-top: 1px solid var(--border);
+  padding: 8px 9px;
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.chat-tool-event.running { border-color: rgba(79,143,255,.26); }
+.chat-tool-event.running .chat-tool-event-badge { color: var(--blue); border-color: rgba(79,143,255,.35); background: rgba(79,143,255,.12); }
+.chat-tool-event.success { border-color: rgba(79,255,143,.26); }
+.chat-tool-event.success .chat-tool-event-badge { color: var(--green); border-color: rgba(79,255,143,.35); background: rgba(79,255,143,.12); }
+.chat-tool-event.error { border-color: rgba(255,79,106,.26); }
+.chat-tool-event.error .chat-tool-event-badge { color: var(--red); border-color: rgba(255,79,106,.35); background: rgba(255,79,106,.12); }
+.chat-tool-event.governance { border-color: rgba(255,159,67,.26); }
+.chat-tool-event.governance .chat-tool-event-badge { color: var(--orange); border-color: rgba(255,159,67,.35); background: rgba(255,159,67,.12); }
+
 @media (max-width: 700px) {
   .chat-msg { max-width: 95%; }
   .chat-messages { padding: 12px 14px; }
   .chat-input-row { padding: 10px 14px; }
+  .chat-session-select {
+    min-width: 120px;
+    max-width: 160px;
+  }
 }
 `,
 
@@ -240,6 +432,10 @@ export const chatDashboardTab: DashboardTab = {
       <span id="chat-status-text">Connecting...</span>
     </div>
     <span class="chat-channel-tag">dashboard:web</span>
+    <select class="chat-session-select" id="chat-session-select" title="Load a previous chat session"></select>
+    <button class="chat-clear-btn" onclick="refreshChatSessions()">Refresh</button>
+    <button class="chat-clear-btn" id="chat-load-btn" onclick="loadSelectedChatSession()">Load</button>
+    <button class="chat-clear-btn" id="chat-resume-btn" onclick="resumeSelectedChatSession()">Resume</button>
     <button class="chat-clear-btn" onclick="clearChatMessages()">Clear</button>
   </div>
   <div class="chat-messages" id="chat-messages">
@@ -248,6 +444,7 @@ export const chatDashboardTab: DashboardTab = {
       <div>Send a message to start chatting</div>
     </div>
   </div>
+  <div class="chat-activity-toasts" id="chat-activity-toasts"></div>
   <div class="chat-input-row">
     <textarea class="chat-textarea" id="chat-input" placeholder="Type a message..." rows="1"></textarea>
     <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">Send</button>
@@ -259,14 +456,27 @@ export const chatDashboardTab: DashboardTab = {
 var chatEventSource = null;
 var chatStreamingEl = null;
 var chatStreamBuf = '';
+var chatSessionCache = [];
+var chatCurrentSessionId = null;
+var chatToolEvents = [];
+var chatToolEventCounter = 0;
 
 function initChat() {
   if (chatEventSource) { chatEventSource.close(); }
+
+  resetToolActivity();
+  refreshChatSessions();
 
   chatEventSource = new EventSource('/chat/events');
 
   chatEventSource.addEventListener('ping', function() {
     setChatStatus('connected', 'Connected');
+  });
+
+  chatEventSource.addEventListener('session_started', function(e) {
+    var data = JSON.parse(e.data);
+    chatCurrentSessionId = data.sessionId || null;
+    resetToolActivity();
   });
 
   chatEventSource.addEventListener('text_delta', function(e) {
@@ -291,14 +501,39 @@ function initChat() {
   chatEventSource.addEventListener('tool_call', function(e) {
     var data = JSON.parse(e.data);
     hideEmpty();
-    appendChatMsg('tool-call', '\\u2699 ' + data.toolName);
+    var name = data && data.toolName ? String(data.toolName) : 'tool';
+    pushToolActivity('running', name, 'Tool call requested.');
+    showToolToast('running', 'Running ' + name, 'Tool call started');
     scrollChat();
   });
 
-  chatEventSource.addEventListener('finish', function() {
+  chatEventSource.addEventListener('finish', function(e) {
+    var data = JSON.parse(e.data);
+    var sessionId = data.sessionId || chatCurrentSessionId;
     chatStreamingEl = null;
     chatStreamBuf = '';
     enableChatInput();
+    collapseToolActivity();
+    if (sessionId) {
+      renderChatStepsForSession(sessionId);
+      chatCurrentSessionId = sessionId;
+    }
+  });
+
+  chatEventSource.addEventListener('tool_result', function(e) {
+    var data = JSON.parse(e.data);
+    var name = data && data.toolName ? String(data.toolName) : 'tool';
+    if (data && data.success === false) {
+      var err = data.error ? String(data.error) : 'Unknown error';
+      pushToolActivity('error', name, err);
+      showToolToast('error', name + ' failed', err);
+      hideEmpty();
+      appendChatMsg('error', '\u26A0 ' + name + ' failed: ' + err);
+      scrollChat();
+      return;
+    }
+    pushToolActivity('success', name, 'Completed successfully.');
+    showToolToast('success', name + ' completed', 'Result available in activity log');
   });
 
   chatEventSource.addEventListener('error_event', function(e) {
@@ -313,6 +548,9 @@ function initChat() {
 
   chatEventSource.addEventListener('confirmation', function(e) {
     var data = JSON.parse(e.data);
+    var awaitingTool = toolNameFromConfirmationPrompt(data.prompt);
+    pushToolActivity('governance', awaitingTool || 'approval', 'Waiting for manual confirmation.');
+    showToolToast('governance', 'Approval needed', awaitingTool ? awaitingTool : 'Review request in chat');
     hideEmpty();
     var el = appendChatMsg('confirmation', data.prompt);
     var btns = document.createElement('div');
@@ -351,6 +589,221 @@ function initChat() {
   }
 }
 
+function refreshChatSessions(preferredId) {
+  var select = document.getElementById('chat-session-select');
+  var loadBtn = document.getElementById('chat-load-btn');
+  var resumeBtn = document.getElementById('chat-resume-btn');
+  if (!select) return;
+
+  fetch('/api/sessions?limit=100')
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(function(data) {
+      var sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      chatSessionCache = sessions.filter(function(s) {
+        return s &&
+          s.channelId === 'dashboard:web' &&
+          typeof s.input === 'string';
+      });
+
+      if (chatSessionCache.length === 0) {
+        select.innerHTML = '<option value="">No saved sessions</option>';
+        select.disabled = true;
+        if (loadBtn) loadBtn.disabled = true;
+        if (resumeBtn) resumeBtn.disabled = true;
+        return;
+      }
+
+      select.disabled = false;
+      if (loadBtn) loadBtn.disabled = false;
+      if (resumeBtn) resumeBtn.disabled = false;
+      select.innerHTML = chatSessionCache.map(function(s) {
+        var label = formatChatSessionLabel(s);
+        return '<option value="' + escapeHtml(String(s.id)) + '">' + escapeHtml(label) + '</option>';
+      }).join('');
+
+      if (preferredId) {
+        select.value = preferredId;
+      }
+    })
+    .catch(function(err) {
+      appendChatMsg('error', 'Failed to load sessions: ' + err.message);
+    });
+}
+
+function formatChatSessionLabel(session) {
+  var id = String(session.id || '').slice(0, 8);
+  var ts = session.createdAt ? new Date(session.createdAt).toLocaleString() : 'Unknown time';
+  var status = (session.status || 'unknown').toUpperCase();
+  var input = String(session.input || '').replace(/\s+/g, ' ').trim();
+  if (input.length > 40) input = input.slice(0, 37) + '...';
+  if (!input) input = '(empty input)';
+  return '[' + id + '] [' + status + '] ' + ts + ' - ' + input;
+}
+
+function loadSelectedChatSession() {
+  var select = document.getElementById('chat-session-select');
+  if (!select || !select.value) return;
+
+  var session = chatSessionCache.find(function(s) { return String(s.id) === String(select.value); });
+  if (!session) {
+    appendChatMsg('error', 'Selected session not found. Try refreshing.');
+    return;
+  }
+
+  clearChatMessages();
+  resetToolActivity();
+  hideEmpty();
+  appendChatMsg('tool-call', 'Loaded session ' + String(session.id).slice(0, 8));
+  appendChatMsg('user', session.input || '(empty input)');
+  if (typeof session.output === 'string' && session.output.length > 0) {
+    appendChatMsg('assistant', session.output);
+  } else {
+    appendChatMsg('tool-call', 'Session has no final output yet (status: ' + String(session.status || 'unknown') + ')');
+  }
+  renderChatStepsForSession(String(session.id));
+  scrollChat();
+}
+
+function resumeSelectedChatSession() {
+  var select = document.getElementById('chat-session-select');
+  var inp = document.getElementById('chat-input');
+  if (!select || !select.value) return;
+
+  var session = chatSessionCache.find(function(s) { return String(s.id) === String(select.value); });
+  if (!session) {
+    appendChatMsg('error', 'Selected session not found. Try refreshing.');
+    return;
+  }
+
+  var text = inp ? inp.value.trim() : '';
+  var payload = { sessionId: String(session.id) };
+  if (text) {
+    payload.input = text;
+  }
+
+  hideEmpty();
+  resetToolActivity();
+  appendChatMsg('tool-call', 'Resuming session ' + String(session.id).slice(0, 8) + '...');
+
+  fetch('/resume', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(function(res) {
+    if (!res.ok) {
+      return res.json().catch(function() { return { error: 'HTTP ' + res.status }; }).then(function(body) {
+        throw new Error(body.error || ('HTTP ' + res.status));
+      });
+    }
+    return res.json();
+  }).then(function(data) {
+    if (inp) {
+      inp.value = '';
+      inp.style.height = 'auto';
+    }
+    if (text) {
+      appendChatMsg('user', text);
+    }
+    appendChatMsg('assistant', data.output || '(no output)');
+    if (data.sessionId) {
+      renderChatStepsForSession(String(data.sessionId));
+      chatCurrentSessionId = String(data.sessionId);
+    }
+    scrollChat();
+    refreshChatSessions(String(session.id));
+  }).catch(function(err) {
+    appendChatMsg('error', 'Resume failed: ' + err.message);
+    scrollChat();
+  });
+}
+
+function renderChatStepsForSession(sessionId) {
+  if (!sessionId) return;
+
+  fetch('/api/sessions/' + encodeURIComponent(sessionId) + '/traces')
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(function(data) {
+      var traces = Array.isArray(data.traces) ? data.traces : [];
+      var steps = traces.filter(function(t) {
+        return t && t.phase !== 'session_start' && t.phase !== 'finish';
+      });
+      if (steps.length === 0) return;
+
+      var lines = steps.map(function(t) {
+        var iter = typeof t.iteration === 'number' ? ('iter ' + t.iteration + ' ') : '';
+        var phase = String(t.phase || 'event').toUpperCase();
+        var detail = traceDetail(t);
+        return iter + phase + (detail ? ': ' + detail : '');
+      });
+
+      appendChatStepsBlock(sessionId, lines);
+      scrollChat();
+    })
+    .catch(function(err) {
+      appendChatMsg('error', 'Failed to load trace steps: ' + err.message);
+    });
+}
+
+function traceDetail(t) {
+  var d = t && t.data ? t.data : null;
+  if (!d || typeof d !== 'object') return '';
+  if (t.phase === 'tool_call' && d.toolName) return String(d.toolName);
+  if (t.phase === 'tool_result') {
+    var tool = d.toolName ? String(d.toolName) : 'tool';
+    if (d.error) return tool + ' (error)';
+    return tool + ' (ok)';
+  }
+  if (t.phase === 'governance') {
+    var toolName = d.toolName ? String(d.toolName) : 'tool';
+    var decision = d.decision ? String(d.decision) : 'unknown';
+    return toolName + ' -> ' + decision;
+  }
+  if (t.phase === 'reason' && d.text) {
+    var text = String(d.text).replace(/\s+/g, ' ').trim();
+    if (text.length > 90) text = text.slice(0, 87) + '...';
+    return text;
+  }
+  if (t.phase === 'error' && d.error) return String(d.error);
+  return '';
+}
+
+function appendChatStepsBlock(sessionId, lines) {
+  var container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  var existing = document.getElementById('chat-steps-' + sessionId);
+  if (existing) existing.remove();
+
+  var div = document.createElement('div');
+  div.className = 'chat-msg assistant chat-steps-wrap';
+  div.id = 'chat-steps-' + sessionId;
+
+  var title = 'Trace steps (' + lines.length + ') - session ' + String(sessionId).slice(0, 8);
+  var body = safeEscape(lines.join('\\n'));
+  div.innerHTML =
+    '<details class="chat-steps">' +
+      '<summary>' + safeEscape(title) + '</summary>' +
+      '<div class="chat-steps-body">' + body + '</div>' +
+    '</details>';
+  container.appendChild(div);
+}
+
+function safeEscape(s) {
+  if (typeof escapeHtml === 'function') return escapeHtml(String(s));
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function setChatStatus(state, label) {
   var dot = document.getElementById('chat-status-dot');
   var txt = document.getElementById('chat-status-text');
@@ -371,6 +824,134 @@ function appendChatMsg(cls, text) {
   div.textContent = text;
   container.appendChild(div);
   return div;
+}
+
+function pushToolActivity(status, toolName, detail) {
+  chatToolEventCounter += 1;
+  chatToolEvents.push({
+    id: 'tool-evt-' + chatToolEventCounter,
+    status: status,
+    toolName: toolName,
+    detail: detail || '',
+    ts: new Date().toISOString(),
+  });
+  if (chatToolEvents.length > 80) {
+    chatToolEvents = chatToolEvents.slice(chatToolEvents.length - 80);
+  }
+  renderToolActivity();
+}
+
+function renderToolActivity() {
+  if (chatToolEvents.length === 0) return;
+  var container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  var block = document.getElementById('chat-tool-activity');
+  if (!block) {
+    block = document.createElement('div');
+    block.className = 'chat-msg assistant chat-steps-wrap';
+    block.id = 'chat-tool-activity';
+    block.innerHTML =
+      '<details class="chat-steps chat-tool-activity" id="chat-tool-activity-details" open>' +
+        '<summary><span>Tool activity</span><span class="chat-tool-count" id="chat-tool-count">0 events</span></summary>' +
+        '<div class="chat-steps-body"><div class="chat-tool-events" id="chat-tool-events"></div></div>' +
+      '</details>';
+    container.appendChild(block);
+  }
+
+  var countEl = document.getElementById('chat-tool-count');
+  if (countEl) countEl.textContent = chatToolEvents.length + ' event' + (chatToolEvents.length === 1 ? '' : 's');
+  var listEl = document.getElementById('chat-tool-events');
+  if (!listEl) return;
+
+  listEl.innerHTML = '';
+  chatToolEvents.slice().reverse().forEach(function(evt) {
+    var row = document.createElement('details');
+    row.className = 'chat-tool-event ' + evt.status;
+    var summary = document.createElement('summary');
+
+    var badge = document.createElement('span');
+    badge.className = 'chat-tool-event-badge';
+    badge.textContent = evt.status;
+    summary.appendChild(badge);
+
+    var name = document.createElement('span');
+    name.className = 'chat-tool-event-name';
+    name.textContent = evt.toolName;
+    summary.appendChild(name);
+
+    var time = document.createElement('span');
+    time.className = 'chat-tool-event-time';
+    time.textContent = formatToolEventTime(evt.ts);
+    summary.appendChild(time);
+
+    row.appendChild(summary);
+
+    var detail = document.createElement('div');
+    detail.className = 'chat-tool-event-detail';
+    detail.textContent = evt.detail || 'No details';
+    row.appendChild(detail);
+
+    if (evt.status === 'error' || evt.status === 'governance') {
+      row.open = true;
+    }
+
+    listEl.appendChild(row);
+  });
+}
+
+function collapseToolActivity() {
+  var details = document.getElementById('chat-tool-activity-details');
+  if (details) details.open = false;
+}
+
+function resetToolActivity() {
+  chatToolEvents = [];
+  var block = document.getElementById('chat-tool-activity');
+  if (block) block.remove();
+  var toasts = document.getElementById('chat-activity-toasts');
+  if (toasts) toasts.innerHTML = '';
+}
+
+function showToolToast(status, title, detail) {
+  var host = document.getElementById('chat-activity-toasts');
+  if (!host) return;
+  var toast = document.createElement('div');
+  toast.className = 'chat-tool-toast ' + status;
+
+  var titleEl = document.createElement('div');
+  titleEl.className = 'chat-tool-toast-title';
+  titleEl.textContent = title;
+  toast.appendChild(titleEl);
+
+  if (detail) {
+    var detailEl = document.createElement('div');
+    detailEl.className = 'chat-tool-toast-detail';
+    detailEl.textContent = detail;
+    toast.appendChild(detailEl);
+  }
+
+  host.appendChild(toast);
+
+  setTimeout(function() {
+    toast.classList.add('fade');
+  }, 4200);
+  setTimeout(function() {
+    if (toast.parentElement) toast.parentElement.removeChild(toast);
+  }, 4700);
+}
+
+function formatToolEventTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+function toolNameFromConfirmationPrompt(prompt) {
+  var text = String(prompt || '');
+  var m = text.match(/Tool\s+"([^"]+)"/);
+  return m ? m[1] : '';
 }
 
 function scrollChat() {
@@ -441,6 +1022,7 @@ function clearChatMessages() {
     '</div>';
   chatStreamingEl = null;
   chatStreamBuf = '';
+  resetToolActivity();
 }
 `,
 };

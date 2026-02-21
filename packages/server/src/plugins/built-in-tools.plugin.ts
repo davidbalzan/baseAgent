@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import { z } from "zod";
 import type { Plugin, PluginContext, PluginCapabilities } from "@baseagent/core";
 import type { ToolDefinition } from "@baseagent/core";
@@ -11,6 +12,7 @@ import {
   createRemovePluginTool,
   createMemoryReadTool,
   createMemoryWriteTool,
+  createHeartbeatRegisterTool,
   createFileReadTool,
   createFileWriteTool,
   createFileEditTool,
@@ -85,6 +87,7 @@ export function createBuiltInToolsPlugin(deps: BuiltInToolsPluginDeps): Plugin {
       tools.push(thinkTool);
       tools.push(createMemoryReadTool(ctx.workspacePath));
       tools.push(createMemoryWriteTool(ctx.workspacePath));
+      tools.push(createHeartbeatRegisterTool(ctx.workspacePath));
       tools.push(createFileReadTool(ctx.workspacePath, ctx.rootDir));
       tools.push(createFileWriteTool(ctx.workspacePath));
       tools.push(createFileEditTool(ctx.workspacePath));
@@ -156,19 +159,56 @@ export function createBuiltInToolsPlugin(deps: BuiltInToolsPluginDeps): Plugin {
       const reloadSkillsTool: AnyToolDefinition = {
         name: "reload_skills",
         description: "Hot-reload all skills from the skills/ directory without restarting the server. " +
-          "Use this after creating or modifying a skill with create_skill.",
-        parameters: z.object({}),
+          "Use this after creating or modifying a skill with create_skill. " +
+          "This tool also validates skills via TypeScript by default.",
+        parameters: z.object({
+          verifyTypecheck: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe("Run `pnpm exec tsc --noEmit` in skills/ after reload."),
+        }),
         permission: "exec" as const,
-        async execute() {
+        async execute(args) {
           if (!savedCtx) return "Error: Plugin context not available.";
           const result = await doLoadSkills(savedCtx);
+          let typecheckPassed = true;
+          let typecheckSummary = "";
+
+          if (args.verifyTypecheck) {
+            const typecheck = spawnSync("pnpm", ["exec", "tsc", "--noEmit"], {
+              cwd: resolve(savedCtx.rootDir, "skills"),
+              encoding: "utf-8",
+            });
+            typecheckPassed = typecheck.status === 0;
+
+            if (typecheckPassed) {
+              typecheckSummary = "Skills typecheck: passed.";
+            } else {
+              const stderr = (typecheck.stderr ?? "").trim();
+              const stdout = (typecheck.stdout ?? "").trim();
+              const details = (stderr || stdout || "Unknown typecheck failure").slice(0, 1200);
+              typecheckSummary = `Skills typecheck: failed. ${details}`;
+            }
+          }
+
           const summary = result.loaded.length > 0
             ? `Loaded: ${result.loaded.join(", ")}`
             : "No skills loaded";
           const failures = result.failed.length > 0
             ? `. Failed: ${result.failed.map((f) => `${f.name} (${f.error})`).join(", ")}`
             : "";
-          return `Skills reloaded. ${summary}${failures}`;
+
+          const validationFailed = result.failed.length > 0 || !typecheckPassed;
+          const validationPrefix = validationFailed
+            ? "[reload_skills validation_failed] "
+            : "Skills reloaded successfully. ";
+
+          const runbook = validationFailed
+            ? "Fix reported issues, then call reload_skills again. Do not claim skill success yet."
+            : "Validation gate passed: reload + typecheck are clean.";
+
+          return `${validationPrefix}${summary}${failures}${typecheckSummary ? `. ${typecheckSummary}` : ""} ${runbook}`;
         },
       };
       tools.push(reloadSkillsTool);

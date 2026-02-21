@@ -13,6 +13,9 @@ export const TracePhaseSchema = z.enum([
   "model_fallback",
   "narration_nudge",
   "tool_failure_recovery",
+  "reflection_pre",
+  "reflection_post",
+  "reflection_session",
 ]);
 
 export const TraceEventSchema = z.object({

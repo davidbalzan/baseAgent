@@ -38,9 +38,10 @@ export interface IncomingMessageLike {
 
 export interface StreamCallbacksLike {
   onTextDelta: (delta: string) => void;
+  onSessionStart?: (sessionId: string) => void;
   onToolCall: (toolName: string) => void;
   onToolResult?: (toolName: string, success: boolean, error?: string) => void;
-  onFinish: (output: string) => void;
+  onFinish: (output: string, meta?: { sessionId?: string }) => void;
   onError: (error: Error) => void;
 }
 

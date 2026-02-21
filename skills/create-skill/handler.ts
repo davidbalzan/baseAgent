@@ -23,7 +23,8 @@ export default function createTool(ctx: SkillContext): ToolDefinition<typeof par
     description:
       "Create a new skill by writing a handler.ts file to the skills directory. " +
       "The code must default-export a ToolDefinition or a factory function (ctx) => ToolDefinition. " +
-      "A server restart is required to activate the new skill.",
+      "Use this for single-skill scaffolding. For broader/multi-file repo changes, use self_enhance. " +
+      "After creating or editing a skill, ALWAYS run reload_skills (tool call, not a shell script) and only report success when reload has zero failures and skills typecheck passes.",
     parameters,
     permission: "exec" as const,
     execute: async (args) => {
@@ -46,7 +47,8 @@ export default function createTool(ctx: SkillContext): ToolDefinition<typeof par
 
       return (
         `Skill "${name}" created at skills/${name}/handler.ts. ` +
-        `Call the reload_skills tool to load it immediately without a restart.`
+        `Runbook: 1) call reload_skills, 2) confirm no failed skills, 3) confirm skills typecheck passes. ` +
+        `Do not claim success until all three checks pass.`
       );
     },
   };

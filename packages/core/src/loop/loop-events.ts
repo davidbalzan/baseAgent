@@ -4,6 +4,7 @@ import type { ToolCall, ToolResult } from "../schemas/tool.schema.js";
 import type { LoopState } from "./loop-state.js";
 import type { ToolMessageMeta } from "./compaction.js";
 import type { CoreMessage } from "ai";
+import type { ReflectionSessionSummary } from "./reflection.js";
 
 export interface SessionCompletePayload {
   sessionId: string;
@@ -11,6 +12,7 @@ export interface SessionCompletePayload {
   state: LoopState;
   messages: CoreMessage[];
   toolMessageMeta: ToolMessageMeta[];
+  reflectionSummary?: ReflectionSessionSummary;
 }
 
 export interface LoopEventMap {

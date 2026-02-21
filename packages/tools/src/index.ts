@@ -18,6 +18,7 @@ export { createRemovePluginTool } from "./built-in/remove-plugin.tool.js";
 export type { RemovePluginContext } from "./built-in/remove-plugin.tool.js";
 export { createMemoryReadTool } from "./built-in/memory-read.tool.js";
 export { createMemoryWriteTool } from "./built-in/memory-write.tool.js";
+export { createHeartbeatRegisterTool } from "./built-in/heartbeat-register.tool.js";
 export { createFileReadTool } from "./built-in/file-read.tool.js";
 export { createFileWriteTool } from "./built-in/file-write.tool.js";
 export { createFileEditTool } from "./built-in/file-edit.tool.js";

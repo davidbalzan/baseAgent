@@ -24,6 +24,8 @@ const FRIENDLY_TOOL_NAMES: Record<string, string> = {
   list_plugins: "Listing plugins",
   add_mcp_server: "Adding MCP server",
   pnpm_install: "Installing package",
+  reload_skills: "Reloading skills",
+  self_enhance: "Self-enhancing",
 };
 
 function friendlyToolName(raw: string): string {

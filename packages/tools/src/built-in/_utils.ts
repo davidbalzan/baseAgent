@@ -133,9 +133,12 @@ export const PROTECTED_MEMORY_FILES = new Set([
 export function assertNotProtectedMemoryFile(resolvedPath: string): void {
   const name = basename(resolvedPath);
   if (PROTECTED_MEMORY_FILES.has(name)) {
+    const hint = name === "HEARTBEAT.md"
+      ? "Use heartbeat_register to add schedule tasks."
+      : "Use memory_write to append new entries.";
     throw new Error(
       `"${name}" is a protected memory file and cannot be modified via file tools. ` +
-      `Use memory_write to append new entries.`,
+      hint,
     );
   }
 }

@@ -433,7 +433,11 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
         .map(([k, v]) => `  ${k}: ${typeof v === "string" && v.length > 80 ? v.slice(0, 80) + "..." : String(v)}`)
         .join("\n");
       const prompt = `[Governance] Tool "${toolName}" (${permission}) requests approval.\n\n${argSummary}\n\nReply YES to approve or NO to deny.`;
-      const result = await adapter.requestConfirmation!(channelId, prompt);
+      const result = await adapter.requestConfirmation!(
+        channelId,
+        prompt,
+        config.governance?.confirmationTimeoutMs,
+      );
       return result.approved
         ? { approved: true as const }
         : { approved: false as const, reason: result.reason ?? "User denied" };
@@ -442,6 +446,7 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
 
   const handleMessage: HandleMessageFn = async (message, stream) => {
     const emitter = new LoopEmitter();
+    let activeSessionId: string | undefined;
     let sawProgressSignal = false;
     const markProgress = () => {
       sawProgressSignal = true;
@@ -460,6 +465,12 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
       stream.onToolResult?.(result.toolName, !result.error, result.error);
     });
     emitter.on("error", (error) => stream.onError(error));
+    emitter.on("trace", (event) => {
+      if (event.phase === "session_start" && event.sessionId) {
+        activeSessionId = event.sessionId;
+        stream.onSessionStart?.(event.sessionId);
+      }
+    });
 
     let progressTick = 0;
     const progressTimer = setInterval(() => {
@@ -485,7 +496,7 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
         emitter,
       );
       clearInterval(progressTimer);
-      stream.onFinish(result.output);
+      stream.onFinish(result.output, { sessionId: result.sessionId ?? activeSessionId });
     } catch (err) {
       clearInterval(progressTimer);
       const error = err instanceof Error ? err : new Error(String(err));
@@ -576,6 +587,7 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     pluginResult.dashboardTabs,
   ).replace(/__BOT_NAME__/g, botName);
   app.get("/dashboard", (c) => c.html(dashboardHtml));
+  app.get("/favicon.ico", (c) => c.body(null, 204));
   dashboardLog.log(`Trace replay UI at GET /dashboard (${pluginResult.dashboardTabs.length} plugin tab(s))`);
 
   // HTTP rate limiting
@@ -610,7 +622,7 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   });
 
   // POST /resume
-  const RESUMABLE_STATUSES = new Set(["timeout", "cost_limit", "failed"]);
+  const RESUMABLE_STATUSES = new Set(["timeout", "cost_limit", "failed", "pending"]);
   app.post("/resume", async (c) => {
     const body = await c.req.json<{
       sessionId: string; input?: string; additionalBudgetUsd?: number; additionalIterations?: number;
@@ -624,9 +636,11 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
       return c.json({ error: `Session status '${session.status}' is not resumable` }, 409);
     }
     const rows = messageRepo.loadSessionMessages(body.sessionId);
-    if (rows.length === 0) return c.json({ error: "No messages found for session" }, 404);
-    const { messages: restoredMessages, toolMessageMeta } = deserializeMessages(rows);
-    if (body.input) restoredMessages.push({ role: "user", content: body.input });
+    const hasStoredMessages = rows.length > 0;
+    const deserialized = hasStoredMessages ? deserializeMessages(rows) : undefined;
+    const restoredMessages = deserialized?.messages ?? [];
+    const toolMessageMeta = deserialized?.toolMessageMeta;
+    if (hasStoredMessages && body.input) restoredMessages.push({ role: "user", content: body.input });
     const initialState: Partial<LoopState> = {
       iteration: session.iterations, totalTokens: session.totalTokens,
       promptTokens: session.promptTokens, completionTokens: session.completionTokens,
@@ -635,13 +649,22 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     const effectiveCostCap = (initialState.estimatedCostUsd ?? 0) + (body.additionalBudgetUsd ?? config.agent.costCapUsd);
     const effectiveMaxIterations = (initialState.iteration ?? 0) + (body.additionalIterations ?? config.agent.maxIterations);
     try {
+      const resumeInput = hasStoredMessages
+        ? (body.input ?? "")
+        : (body.input ?? session.input ?? "");
       const result = await runSession({
-        input: body.input ?? "", sessionId: body.sessionId, initialMessages: restoredMessages as CoreMessage[],
-        initialToolMessageMeta: toolMessageMeta, initialState,
-        costCapOverrideUsd: effectiveCostCap, maxIterationsOverride: effectiveMaxIterations,
+        input: resumeInput,
+        channelId: session.channelId ?? undefined,
+        sessionId: body.sessionId,
+        initialMessages: hasStoredMessages ? restoredMessages as CoreMessage[] : undefined,
+        initialToolMessageMeta: hasStoredMessages ? toolMessageMeta : undefined,
+        initialState,
+        costCapOverrideUsd: effectiveCostCap,
+        maxIterationsOverride: effectiveMaxIterations,
       }, sessionDeps);
       return c.json({
         resumed: true, sessionId: body.sessionId, output: result.output,
+        resumedFromEmptyMessages: !hasStoredMessages,
         usage: {
           totalTokens: result.state.totalTokens, promptTokens: result.state.promptTokens,
           completionTokens: result.state.completionTokens, estimatedCostUsd: result.state.estimatedCostUsd,

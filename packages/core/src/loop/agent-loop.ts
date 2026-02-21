@@ -7,6 +7,11 @@ import { createLoopState, updateUsage, type LoopState, type ModelPricing } from 
 import { compactMessages, persistCompactionSummary, decayToolOutputs, type ToolMessageMeta } from "./compaction.js";
 import { wrapUserInput } from "./injection-defense.js";
 import { createToolFailureState, processToolResults } from "./tool-failure-tracker.js";
+import {
+  reflectBeforeToolCall,
+  reflectAfterToolCall,
+  type ReflectionSessionSummary,
+} from "./reflection.js";
 
 export interface AgentLoopOptions {
   model: LanguageModel;
@@ -33,6 +38,14 @@ export interface AgentLoopOptions {
   initialMessages?: CoreMessage[];
   initialToolMessageMeta?: ToolMessageMeta[];
   initialState?: Partial<LoopState>;
+  reflection?: {
+    enabled?: boolean;
+    preActionChecks?: boolean;
+    postActionChecks?: boolean;
+    maxNudgesPerIteration?: number;
+    sessionSummary?: boolean;
+    persistToUserMemory?: boolean;
+  };
 }
 
 export interface AgentLoopResult {
@@ -41,6 +54,7 @@ export interface AgentLoopResult {
   state: LoopState;
   messages: CoreMessage[];
   toolMessageMeta: ToolMessageMeta[];
+  reflectionSummary?: ReflectionSessionSummary;
 }
 
 function toolsToSdkFormat(tools: Record<string, ToolDefinition>): Record<string, CoreTool> {
@@ -109,6 +123,7 @@ export async function runAgentLoop(
     initialMessages,
     initialToolMessageMeta,
     initialState,
+    reflection,
   } = options;
 
   const sessionId = providedSessionId ?? randomUUID();
@@ -143,6 +158,21 @@ export async function runAgentLoop(
   const toolMessageMeta: ToolMessageMeta[] = initialToolMessageMeta
     ? [...initialToolMessageMeta]
     : [];
+  const reflectionEnabled = reflection?.enabled ?? false;
+  const reflectionPreEnabled = reflection?.preActionChecks ?? true;
+  const reflectionPostEnabled = reflection?.postActionChecks ?? true;
+  const maxReflectionNudgesPerIteration = reflection?.maxNudgesPerIteration ?? 1;
+  const reflectionSessionSummaryEnabled = reflection?.sessionSummary ?? true;
+  const reflectionStats: ReflectionSessionSummary = {
+    preChecks: 0,
+    blockedCalls: 0,
+    highRiskCalls: 0,
+    postChecks: 0,
+    postErrors: 0,
+    nudgesInjected: 0,
+    estimatedPromptOverheadTokens: 0,
+    estimatedCostUsd: 0,
+  };
 
   emitTrace(loopEmitter, sessionId, "session_start", 0, { input });
 
@@ -270,14 +300,37 @@ export async function runAgentLoop(
         role: "tool" as const,
         content: [],
       };
+      const reflectionNudges: string[] = [];
 
       for (const tc of toolCalls) {
+        const toolDef = tools[tc.toolName];
+        let preCheck = null;
+        if (reflectionEnabled && reflectionPreEnabled) {
+          preCheck = reflectBeforeToolCall(tc.toolName, tc.args, toolDef);
+          reflectionStats.preChecks += 1;
+          if (preCheck.risk === "high") reflectionStats.highRiskCalls += 1;
+          if (preCheck.shouldBlock) reflectionStats.blockedCalls += 1;
+          emitTrace(loopEmitter, sessionId, "reflection_pre", state.iteration, {
+            toolName: tc.toolName,
+            risk: preCheck.risk,
+            shouldBlock: preCheck.shouldBlock,
+            summary: preCheck.summary,
+            ...(preCheck.recommendation ? { recommendation: preCheck.recommendation } : {}),
+          });
+        }
+
         emitTrace(loopEmitter, sessionId, "tool_call", state.iteration, {
           toolName: tc.toolName,
           args: tc.args,
         });
 
-        const execResult = await executeTool(tc.toolName, tc.args);
+        const execResult = preCheck?.shouldBlock
+          ? {
+              result: "",
+              error: `${preCheck.summary}${preCheck.recommendation ? ` ${preCheck.recommendation}` : ""}`,
+              durationMs: 0,
+            }
+          : await executeTool(tc.toolName, tc.args);
 
         loopEmitter.emit("tool_result", {
           toolCallId: tc.toolCallId,
@@ -294,6 +347,27 @@ export async function runAgentLoop(
           durationMs: execResult.durationMs,
         });
 
+        if (reflectionEnabled && reflectionPostEnabled) {
+          const postCheck = reflectAfterToolCall(tc.toolName, tc.args, execResult.result, execResult.error);
+          reflectionStats.postChecks += 1;
+          if (postCheck.outcome === "error") reflectionStats.postErrors += 1;
+          emitTrace(loopEmitter, sessionId, "reflection_post", state.iteration, {
+            toolName: tc.toolName,
+            outcome: postCheck.outcome,
+            summary: postCheck.summary,
+            ...(postCheck.recommendation ? { recommendation: postCheck.recommendation } : {}),
+          });
+          if (postCheck.shouldNudge && postCheck.recommendation && reflectionNudges.length < maxReflectionNudgesPerIteration) {
+            reflectionNudges.push(postCheck.recommendation);
+            reflectionStats.nudgesInjected += 1;
+            const nudgeTokens = Math.ceil(postCheck.recommendation.length / 4);
+            reflectionStats.estimatedPromptOverheadTokens += nudgeTokens;
+            if (pricing?.costPerMInputTokens !== undefined) {
+              reflectionStats.estimatedCostUsd += (nudgeTokens / 1_000_000) * pricing.costPerMInputTokens;
+            }
+          }
+        }
+
         (toolResults.content as Array<{ type: "tool-result"; toolCallId: string; toolName: string; result: string }>).push({
           type: "tool-result",
           toolCallId: tc.toolCallId,
@@ -306,6 +380,9 @@ export async function runAgentLoop(
 
       messages.push(toolResults);
       toolMessageMeta.push({ messageIndex: messages.length - 1, iteration: state.iteration });
+      for (const nudge of reflectionNudges) {
+        messages.push({ role: "user", content: nudge });
+      }
 
       // --- Tool failure recovery ---
       // Track per-tool failures and nudge the model when tools are repeatedly broken.
@@ -389,8 +466,28 @@ export async function runAgentLoop(
     ...state,
   });
 
-  loopEmitter.emit("finish", finalOutput);
-  loopEmitter.emit("session_complete", { sessionId, output: finalOutput, state, messages, toolMessageMeta });
+  if (reflectionEnabled && reflectionSessionSummaryEnabled) {
+    emitTrace(loopEmitter, sessionId, "reflection_session", state.iteration, {
+      ...reflectionStats,
+    });
+  }
 
-  return { sessionId, output: finalOutput, state, messages, toolMessageMeta };
+  loopEmitter.emit("finish", finalOutput);
+  loopEmitter.emit("session_complete", {
+    sessionId,
+    output: finalOutput,
+    state,
+    messages,
+    toolMessageMeta,
+    reflectionSummary: reflectionEnabled && reflectionSessionSummaryEnabled ? reflectionStats : undefined,
+  });
+
+  return {
+    sessionId,
+    output: finalOutput,
+    state,
+    messages,
+    toolMessageMeta,
+    reflectionSummary: reflectionEnabled && reflectionSessionSummaryEnabled ? reflectionStats : undefined,
+  };
 }

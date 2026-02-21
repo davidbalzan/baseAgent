@@ -253,10 +253,11 @@ export default function createTool(ctx: SkillContext): ToolDefinition<typeof par
   return {
     name: "self_improve",
     description:
-      "Analyze recent session traces to identify patterns, failures, and optimization opportunities. " +
+      "Analyze recent session trace files to identify patterns, failures, and optimization opportunities. " +
       "In 'analyze' mode, returns structured suggestions. In 'apply' mode, returns concrete tool calls " +
       "to execute (using add_system_context, register_tool_group, create_skill, or add_mcp_server). " +
-      "Use 'focus' to narrow analysis to failures, token usage, or tool patterns.",
+      "Use 'focus' to narrow analysis to failures, token usage, or tool patterns. " +
+      "For quick heuristic suggestions without trace mining, use context_suggestions instead.",
     parameters,
     permission: "read" as const,
     maxOutputChars: 80_000,

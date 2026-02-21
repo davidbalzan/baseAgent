@@ -23,7 +23,12 @@ export function setSession(session: EnhanceSession | null): void {
 
 export function requireSession(): EnhanceSession {
   if (!activeSession) {
-    throw new Error("No active enhance session. Call self_enhance with action='start' first.");
+    throw new Error(
+      "No active enhance session. Deterministic runbook: " +
+      "1) self_enhance(action='start', description='...') " +
+      "2) write/edit/read/list/test " +
+      "3) apply or abort.",
+    );
   }
   return activeSession;
 }

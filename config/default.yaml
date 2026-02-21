@@ -82,6 +82,13 @@ governance:
   exec: auto-allow
   toolOverrides:
     add_mcp_server: auto-allow  # user explicitly triggers this; confirmation is redundant
+reflection:
+  enabled: true
+  preActionChecks: true
+  postActionChecks: true
+  maxNudgesPerIteration: 1
+  sessionSummary: true
+  persistToUserMemory: false
 rateLimit:
   channel:
     maxRequests: 10

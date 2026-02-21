@@ -1,9 +1,11 @@
 /** Events emitted on the ChatBus for SSE streaming to the browser. */
 export type ChatEvent =
+  | { type: "session_started"; sessionId: string }
   | { type: "text_delta"; delta: string }
   | { type: "text_reset" }
   | { type: "tool_call"; toolName: string }
-  | { type: "finish"; output: string }
+  | { type: "tool_result"; toolName: string; success: boolean; error?: string }
+  | { type: "finish"; output: string; sessionId?: string }
   | { type: "error"; message: string }
   | { type: "confirmation"; prompt: string }
   | { type: "proactive"; text: string };

@@ -131,7 +131,17 @@ const GovernanceConfigSchema = z.object({
   read: ToolPolicySchema.default("auto-allow"),
   write: ToolPolicySchema.default("confirm"),
   exec: ToolPolicySchema.default("confirm"),
+  confirmationTimeoutMs: z.number().int().positive().default(300_000),
   toolOverrides: z.record(z.string(), ToolPolicySchema).optional(),
+});
+
+const ReflectionConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  preActionChecks: z.boolean().default(true),
+  postActionChecks: z.boolean().default(true),
+  maxNudgesPerIteration: z.number().int().nonnegative().default(1),
+  sessionSummary: z.boolean().default(true),
+  persistToUserMemory: z.boolean().default(false),
 });
 
 const RateLimitWindowSchema = z.object({
@@ -194,6 +204,7 @@ export const AppConfigSchema = z.object({
   webhook: WebhookConfigSchema.optional(),
   server: ServerConfigSchema,
   governance: GovernanceConfigSchema.optional(),
+  reflection: ReflectionConfigSchema.optional(),
   rateLimit: RateLimitConfigSchema.optional(),
   dashboard: DashboardConfigSchema.optional(),
   sandbox: SandboxConfigSchema.optional(),

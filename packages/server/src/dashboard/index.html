@@ -1465,13 +1465,13 @@ function renderTraceBody(t) {
       return out;
     }
     case 'tool_call':
-      return `<span class="tool-name">${escapeHtml(d.toolName || '')}</span>\n${escapeHtml(JSON.stringify(d.args || {}, null, 2))}`;
+      return `<span class="tool-name">${escapeHtml(friendlyTool(d.toolName))}</span>\n${escapeHtml(JSON.stringify(d.args || {}, null, 2))}`;
     case 'tool_result': {
       const hasError = d.error;
       const dur = d.durationMs != null ? ` <span class="tool-duration">(${d.durationMs}ms)</span>` : '';
       const label = hasError ? `<span class="tool-result-err">ERROR</span>` : `<span class="tool-result-ok">OK</span>`;
       const content = hasError ? (d.error || '') : (d.result || '');
-      return `<span class="tool-name">${escapeHtml(d.toolName || '')}</span> ${label}${dur}\n${escapeHtml(truncate(String(content), 500))}`;
+      return `<span class="tool-name">${escapeHtml(friendlyTool(d.toolName))}</span> ${label}${dur}\n${escapeHtml(truncate(String(content), 500))}`;
     }
     case 'finish':
       return escapeHtml(truncate(d.output || d.summary || '', 400));
@@ -1645,8 +1645,8 @@ function formatLiveTraceMsg(ev) {
   switch (ev.phase) {
     case 'session_start': return `▶ ${escapeHtml(truncate(stripPromptPrefix(d.input || ''), 80))}`;
     case 'reason': return `💭 ${escapeHtml(truncate(d.text || '', 100))}`;
-    case 'tool_call': return `⚡ ${escapeHtml(d.toolName || 'tool')} called`;
-    case 'tool_result': return `${d.error ? '✗' : '✓'} ${escapeHtml(d.toolName || 'tool')} ${d.error ? 'errored' : `returned (${d.durationMs ?? '?'}ms)`}`;
+    case 'tool_call': return `⚡ ${escapeHtml(friendlyTool(d.toolName))}`;
+    case 'tool_result': return `${d.error ? '✗' : '✓'} ${escapeHtml(friendlyTool(d.toolName))} ${d.error ? 'errored' : `(${d.durationMs ?? '?'}ms)`}`;
     case 'finish': return `■ ${escapeHtml(truncate(d.output || d.summary || '', 100))}`;
     case 'error': return `✗ ${escapeHtml(d.error || 'error')}`;
     case 'compaction': return `⟳ Compacted context`;
@@ -2056,6 +2056,23 @@ function formatDuration(ms) {
 }
 
 function truncate(s, len) { return s.length > len ? s.slice(0, len) + '…' : s; }
+
+const FRIENDLY_TOOL_NAMES = {
+  shell_exec: 'Running command', file_read: 'Reading file', file_write: 'Writing file',
+  file_edit: 'Editing file', file_list: 'Browsing files', web_fetch: 'Fetching page',
+  web_search: 'Searching web', memory_read: 'Reading memory', memory_write: 'Saving to memory',
+  think: 'Reasoning', finish: 'Finishing up', session_search: 'Searching sessions',
+  review_sessions: 'Reviewing sessions', schedule_task: 'Scheduling task',
+  list_scheduled_tasks: 'Listing tasks', cancel_scheduled_task: 'Cancelling task',
+  install_plugin: 'Installing plugin', remove_plugin: 'Removing plugin',
+  list_plugins: 'Listing plugins', add_mcp_server: 'Adding MCP server',
+  pnpm_install: 'Installing package', create_skill: 'Creating skill',
+};
+function friendlyTool(name) {
+  if (!name) return 'tool';
+  if (FRIENDLY_TOOL_NAMES[name]) return FRIENDLY_TOOL_NAMES[name];
+  return name.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+}
 
 function escapeHtml(s) {
   const div = document.createElement('div');

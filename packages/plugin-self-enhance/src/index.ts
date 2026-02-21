@@ -336,6 +336,8 @@ export function createSelfEnhancePlugin(config?: SelfEnhanceConfig): Plugin {
           "Self-modify the agent's codebase safely. Creates an isolated git worktree,",
           "lets you write/edit files, validates (typecheck + tests), and merges on success.",
           "Use for creating new skills or plugins.",
+          "Preferred path for multi-file or cross-package enhancements.",
+          "Follow deterministic runbook only: start -> edits -> test -> apply|abort.",
           "Read docs/CAPABILITIES.md (section 4) for skills and docs/PLUGINS.md for plugins.",
           "Cannot touch packages/core/ (protected).",
           "",

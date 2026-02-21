@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import {
   runAgentLoop,
   LoopEmitter,
@@ -13,6 +14,7 @@ import {
   type LanguageModel,
   type ModelPricing,
   type ToolDefinition,
+  type ReflectionSessionSummary,
 } from "@baseagent/core";
 import type { CoreMessage } from "@baseagent/core";
 import type {
@@ -89,6 +91,32 @@ export interface RunSessionResult {
   sessionId: string;
   output: string;
   state: LoopState;
+  reflectionSummary?: ReflectionSessionSummary;
+}
+
+function persistReflectionSummaryToUserMemory(baseDir: string, summary: ReflectionSessionSummary): void {
+  const filePath = resolve(baseDir, "USER.md");
+  const ts = new Date().toISOString();
+  const block = [
+    "",
+    "",
+    `## Reflection Summary ${ts}`,
+    "",
+    `- Pre-checks: ${summary.preChecks}`,
+    `- Blocked calls: ${summary.blockedCalls}`,
+    `- High-risk calls: ${summary.highRiskCalls}`,
+    `- Post-checks: ${summary.postChecks}`,
+    `- Post-check errors: ${summary.postErrors}`,
+    `- Reflection nudges: ${summary.nudgesInjected}`,
+    `- Reflection prompt overhead (est tokens): ${summary.estimatedPromptOverheadTokens}`,
+    `- Reflection cost overhead (est USD): $${summary.estimatedCostUsd.toFixed(6)}`,
+  ].join("\n");
+
+  if (!existsSync(filePath)) {
+    writeFileSync(filePath, `# USER\n${block}\n`, "utf-8");
+    return;
+  }
+  appendFileSync(filePath, `${block}\n`, "utf-8");
 }
 
 export async function runSession(
@@ -259,6 +287,7 @@ export async function runSession(
       initialMessages: input.initialMessages,
       initialToolMessageMeta: input.initialToolMessageMeta,
       initialState: input.initialState,
+      reflection: config.reflection,
     }, emitter);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -283,6 +312,10 @@ export async function runSession(
     iterations: result.state.iteration,
   });
 
+  if (config.reflection?.enabled && config.reflection?.persistToUserMemory && result.reflectionSummary && userDir) {
+    persistReflectionSummaryToUserMemory(userDir, result.reflectionSummary);
+  }
+
   // 7a. Broadcast session completion to live-stream clients (UI-2)
   bus?.emit({ type: "session_completed", sessionId, status: result.state.status, ts: new Date().toISOString() });
 
@@ -296,5 +329,10 @@ export async function runSession(
     securityLog.warn(`Possible system prompt leakage detected in session ${sessionId}`);
   }
 
-  return { sessionId, output: result.output, state: result.state };
+  return {
+    sessionId,
+    output: result.output,
+    state: result.state,
+    reflectionSummary: result.reflectionSummary,
+  };
 }

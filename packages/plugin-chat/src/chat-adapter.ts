@@ -31,10 +31,12 @@ export class ChatAdapter implements ChannelAdapter {
     };
 
     const stream: StreamCallbacks = {
+      onSessionStart: (sessionId) => this.bus.emit({ type: "session_started", sessionId }),
       onTextDelta: (delta) => this.bus.emit({ type: "text_delta", delta }),
       onTextReset: () => this.bus.emit({ type: "text_reset" }),
       onToolCall: (toolName) => this.bus.emit({ type: "tool_call", toolName }),
-      onFinish: (output) => this.bus.emit({ type: "finish", output }),
+      onToolResult: (toolName, success, error) => this.bus.emit({ type: "tool_result", toolName, success, error }),
+      onFinish: (output, meta) => this.bus.emit({ type: "finish", output, sessionId: meta?.sessionId }),
       onError: (error) => this.bus.emit({ type: "error", message: error.message }),
     };
 
