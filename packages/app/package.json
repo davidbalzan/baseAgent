@@ -16,6 +16,7 @@
     "@baseagent/plugin-heartbeat": "workspace:*",
     "@baseagent/plugin-webhook": "workspace:*",
     "@baseagent/plugin-scheduler": "workspace:*",
+    "@baseagent/plugin-chat": "workspace:*",
     "@hono/node-server": "^1.14.0"
   },
   "devDependencies": {

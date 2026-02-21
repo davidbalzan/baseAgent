@@ -1184,6 +1184,7 @@ See [ADR-008](DECISIONS.md#adr-008-plugin-dashboard-extension-system) for the ar
 Edit `workspace/SOUL.md` to change the agent's name, principles, and constraints. Changes take effect on the next session (no restart needed).
 
 For deeper references, see:
+- `docs/PLUGINS.md` — plugin development guide
 - `docs/DECISIONS.md` — architectural decisions
 - `docs/PRD.md` — product requirements
 - `docs/COMMANDS.md` — AI command reference

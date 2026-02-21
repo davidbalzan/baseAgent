@@ -23,7 +23,42 @@ export function createDiscordPlugin(opts?: DiscordPluginOptions): Plugin {
       if (!config?.enabled || !config.token) {
         return null;
       }
-      return {};
+      return {
+        docs: [{
+          title: "Discord",
+          filename: "DISCORD.md",
+          content: [
+            "# Discord Plugin",
+            "",
+            "Connects the agent to Discord as a chat channel using the Discord.js gateway.",
+            "",
+            "## Configuration",
+            "",
+            "```yaml",
+            "channels:",
+            "  discord:",
+            "    enabled: true",
+            "    token: \"BOT_TOKEN\"        # From Discord Developer Portal",
+            "    allowedUserIds:            # Optional whitelist",
+            "      - \"123456789012345678\"",
+            "```",
+            "",
+            "## How It Works",
+            "",
+            "- Connects via the Discord gateway (WebSocket) to receive message events",
+            "- Messages are routed through the queued handler to prevent concurrent sessions per channel",
+            "- Channel IDs are prefixed as `discord:<channel_id>`",
+            "- Supports optional rate limiting via the `rateLimit.channel` config",
+            "- If `allowedUserIds` is set, messages from other users are silently ignored",
+            "",
+            "## Lifecycle",
+            "",
+            "- **init()** — Validates config, returns capabilities",
+            "- **afterInit()** — Creates the `DiscordAdapter`, registers it, and connects to gateway",
+            "- **shutdown()** — Disconnects the gateway client gracefully",
+          ].join("\n"),
+        }],
+      };
     },
 
     async afterInit(ctx: PluginAfterInitContext): Promise<void> {

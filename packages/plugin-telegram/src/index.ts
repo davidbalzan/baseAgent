@@ -23,7 +23,42 @@ export function createTelegramPlugin(opts?: TelegramPluginOptions): Plugin {
       if (!config?.enabled || !config.token) {
         return null;
       }
-      return {};
+      return {
+        docs: [{
+          title: "Telegram",
+          filename: "TELEGRAM.md",
+          content: [
+            "# Telegram Plugin",
+            "",
+            "Connects the agent to Telegram as a chat channel using the Bot API with long-polling.",
+            "",
+            "## Configuration",
+            "",
+            "```yaml",
+            "channels:",
+            "  telegram:",
+            "    enabled: true",
+            "    token: \"BOT_TOKEN\"        # From @BotFather",
+            "    allowedUserIds:            # Optional whitelist",
+            "      - \"123456789\"",
+            "```",
+            "",
+            "## How It Works",
+            "",
+            "- Uses long-polling to receive messages (no webhook server needed)",
+            "- Messages are routed through the queued handler to prevent concurrent sessions per channel",
+            "- Channel IDs are prefixed as `telegram:<chat_id>`",
+            "- Supports optional rate limiting via the `rateLimit.channel` config",
+            "- If `allowedUserIds` is set, messages from other users are silently ignored",
+            "",
+            "## Lifecycle",
+            "",
+            "- **init()** — Validates config, returns empty capabilities",
+            "- **afterInit()** — Creates the `TelegramAdapter`, registers it, and starts polling",
+            "- **shutdown()** — Stops the polling loop gracefully",
+          ].join("\n"),
+        }],
+      };
     },
 
     async afterInit(ctx: PluginAfterInitContext): Promise<void> {

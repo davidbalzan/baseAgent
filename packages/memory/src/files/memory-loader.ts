@@ -50,8 +50,14 @@ export function loadMemoryFiles(
   let tokenCount = 0;
 
   for (const file of MEMORY_FILES) {
-    const baseDir = (file.perUser && userDir) ? userDir : workspacePath;
-    const filePath = resolve(baseDir, file.filename);
+    let filePath: string;
+    if (file.perUser && userDir) {
+      // Try per-user dir first, fall back to workspace root
+      const userPath = resolve(userDir, file.filename);
+      filePath = existsSync(userPath) ? userPath : resolve(workspacePath, file.filename);
+    } else {
+      filePath = resolve(workspacePath, file.filename);
+    }
 
     if (!existsSync(filePath)) continue;
 

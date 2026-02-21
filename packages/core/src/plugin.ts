@@ -70,6 +70,16 @@ export interface DashboardTab {
   onActivate?: string;
 }
 
+/** A documentation page contributed by a plugin. */
+export interface PluginDoc {
+  /** Sidebar label (e.g. "Scheduler"). */
+  title: string;
+  /** Unique key / filename (e.g. "SCHEDULER.md"). */
+  filename: string;
+  /** Raw markdown content. */
+  content: string;
+}
+
 /** Capabilities returned by a plugin's init(). */
 export interface PluginCapabilities {
   tools?: AnyToolDefinition[];
@@ -79,6 +89,8 @@ export interface PluginCapabilities {
   routePrefix?: string;
   /** Dashboard tabs to register in the main dashboard UI. */
   dashboardTabs?: DashboardTab[];
+  /** Documentation pages contributed by this plugin. */
+  docs?: PluginDoc[];
 }
 
 /** Determines the order in which plugins are loaded. */

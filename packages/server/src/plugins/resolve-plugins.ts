@@ -42,6 +42,12 @@ export async function resolvePlugins(
     plugins.push(createSchedulerPlugin());
   }
 
+  // Dashboard chat (always loaded — zero external dependencies)
+  {
+    const { createChatPlugin } = await import("@baseagent/plugin-chat");
+    plugins.push(createChatPlugin());
+  }
+
   // Routes
   if (config.webhook?.enabled !== false) {
     const { createWebhookPlugin } = await import("@baseagent/plugin-webhook");

@@ -7,6 +7,7 @@ import {
   type PluginAfterInitContext,
   type ChannelAdapterLike,
   type DashboardTab,
+  type PluginDoc,
   type HandleMessageFnLike,
 } from "@baseagent/core";
 import type { Hono } from "hono";
@@ -17,6 +18,7 @@ export interface PluginLoadResult {
   adaptersByPrefix: Map<string, ChannelAdapterLike>;
   routes: Array<{ app: Hono; prefix: string }>;
   dashboardTabs: DashboardTab[];
+  docs: PluginDoc[];
   enabledPlugins: Plugin[];
   /** Call afterInit() on all plugins once handleMessage is ready. */
   afterInit(handleMessage: HandleMessageFnLike, queuedHandleMessage: HandleMessageFnLike): Promise<void>;
@@ -46,6 +48,7 @@ export async function loadPlugins(
   const adaptersByPrefix = new Map<string, ChannelAdapterLike>();
   const routes: Array<{ app: Hono; prefix: string }> = [];
   const dashboardTabs: DashboardTab[] = [];
+  const docs: PluginDoc[] = [];
   const enabledPlugins: Plugin[] = [];
 
   for (const plugin of sorted) {
@@ -88,6 +91,11 @@ export async function loadPlugins(
       if (caps.dashboardTabs) {
         dashboardTabs.push(...caps.dashboardTabs);
       }
+
+      // Collect plugin-contributed docs
+      if (caps.docs) {
+        docs.push(...caps.docs);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       ctx.warn(`[plugin-loader] Plugin "${plugin.name}" init failed: ${msg}`);
@@ -99,6 +107,7 @@ export async function loadPlugins(
     adaptersByPrefix,
     routes,
     dashboardTabs,
+    docs,
     enabledPlugins,
 
     async afterInit(handleMessage: HandleMessageFnLike, queuedHandleMessage: HandleMessageFnLike): Promise<void> {

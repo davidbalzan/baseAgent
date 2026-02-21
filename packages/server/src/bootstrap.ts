@@ -293,6 +293,24 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
   // sees adapters as soon as registerAdapter() is called in afterInit — no race.
   adaptersByPrefix = pluginResult.adaptersByPrefix;
 
+  // Load docs plugin (needs collected docs from other plugins)
+  {
+    const { createDocsPlugin } = await import("@baseagent/plugin-docs");
+    const docsPlugin = createDocsPlugin(pluginResult.docs, ROOT_DIR);
+    const docsCaps = await docsPlugin.init(pluginCtx);
+    if (docsCaps) {
+      if (docsCaps.routes) {
+        pluginResult.routes.push({
+          app: docsCaps.routes as Hono,
+          prefix: docsCaps.routePrefix ?? "/docs-plugin",
+        });
+      }
+      if (docsCaps.dashboardTabs) {
+        pluginResult.dashboardTabs.push(...docsCaps.dashboardTabs);
+      }
+    }
+  }
+
   // ── 4. Session deps + handleMessage ────────────────────────────
   const sessionDeps: RunSessionDeps = {
     model, registry, config, workspacePath,

@@ -23,7 +23,39 @@ export function createHeartbeatPlugin(): Plugin {
         return null;
       }
       ctx.log("[heartbeat] Plugin enabled");
-      return {};
+      return {
+        docs: [{
+          title: "Heartbeat",
+          filename: "HEARTBEAT.md",
+          content: [
+            "# Heartbeat Plugin",
+            "",
+            "Periodically runs an agent session on a timer, useful for proactive check-ins, monitoring, or recurring tasks.",
+            "",
+            "## Configuration",
+            "",
+            "```yaml",
+            "heartbeat:",
+            "  enabled: true",
+            "  intervalMs: 1800000          # 30 minutes (default)",
+            "  channelId: \"telegram:12345\"  # Optional: send results to a channel",
+            "```",
+            "",
+            "## How It Works",
+            "",
+            "- Runs an agent session at a fixed interval (`intervalMs`, default 30 min)",
+            "- The session uses auto-allow governance (no confirmation prompts)",
+            "- If `channelId` is set and the target adapter supports `sendMessage`, results are forwarded to that channel",
+            "- The heartbeat timer starts after all plugins are initialized",
+            "",
+            "## Use Cases",
+            "",
+            "- Periodic workspace health checks",
+            "- Proactive status updates sent to a chat channel",
+            "- Scheduled monitoring or reporting tasks",
+          ].join("\n"),
+        }],
+      };
     },
 
     async afterInit(_ctx: PluginAfterInitContext): Promise<void> {

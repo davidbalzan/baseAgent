@@ -26,8 +26,14 @@ export function createMemoryReadTool(workspacePath: string, userDir?: string): T
     parameters,
     permission: "read",
     execute: async (args) => {
-      const baseDir = (PER_USER_FILES.has(args.filename) && userDir) ? userDir : workspacePath;
-      const filePath = resolve(baseDir, args.filename);
+      let filePath: string;
+      if (PER_USER_FILES.has(args.filename) && userDir) {
+        // Try per-user dir first, fall back to workspace root
+        const userPath = resolve(userDir, args.filename);
+        filePath = existsSync(userPath) ? userPath : resolve(workspacePath, args.filename);
+      } else {
+        filePath = resolve(workspacePath, args.filename);
+      }
 
       if (!existsSync(filePath)) {
         return `File ${args.filename} does not exist.`;

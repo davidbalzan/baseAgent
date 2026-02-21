@@ -543,6 +543,7 @@ body::before {
 .channel-tag.ch-discord { background: rgba(160,111,255,.12); color: var(--violet); }
 .channel-tag.ch-slack { background: rgba(79,255,143,.12); color: var(--green); }
 .channel-tag.ch-http { background: rgba(255,159,67,.12); color: var(--orange); }
+.channel-tag.ch-dashboard { background: rgba(79,240,224,.12); color: var(--cyan); }
 .channel-tag.ch-model { background: rgba(79,240,224,.12); color: var(--cyan); }
 
 /* ─── LIVE PANEL ─── */
@@ -1878,6 +1879,7 @@ function channelColorClass(channelId) {
   if (ch === 'discord') return 'ch-discord';
   if (ch === 'slack') return 'ch-slack';
   if (ch === 'http' || ch === 'webhook') return 'ch-http';
+  if (ch === 'dashboard') return 'ch-dashboard';
   return '';
 }
 

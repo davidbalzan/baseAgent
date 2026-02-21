@@ -72,6 +72,7 @@ export type {
   PluginPhase,
   PluginAfterInitContext,
   DashboardTab,
+  PluginDoc,
   ChannelAdapterLike,
   HandleMessageFnLike,
   IncomingMessageLike,

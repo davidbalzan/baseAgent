@@ -23,7 +23,44 @@ export function createSlackPlugin(opts?: SlackPluginOptions): Plugin {
       if (!config?.enabled || !config.token || !config.appToken) {
         return null;
       }
-      return {};
+      return {
+        docs: [{
+          title: "Slack",
+          filename: "SLACK.md",
+          content: [
+            "# Slack Plugin",
+            "",
+            "Connects the agent to Slack as a chat channel using Socket Mode.",
+            "",
+            "## Configuration",
+            "",
+            "```yaml",
+            "channels:",
+            "  slack:",
+            "    enabled: true",
+            "    token: \"xoxb-...\"          # Bot token",
+            "    appToken: \"xapp-...\"       # App-level token for Socket Mode",
+            "    allowedUserIds:            # Optional whitelist",
+            "      - \"U01ABCDEF\"",
+            "```",
+            "",
+            "## How It Works",
+            "",
+            "- Connects via Slack Socket Mode (WebSocket) — no public URL needed",
+            "- Requires both a bot token (`xoxb-`) and an app-level token (`xapp-`)",
+            "- Messages are routed through the queued handler to prevent concurrent sessions per channel",
+            "- Channel IDs are prefixed as `slack:<channel_id>`",
+            "- Supports optional rate limiting via the `rateLimit.channel` config",
+            "- If `allowedUserIds` is set, messages from other users are silently ignored",
+            "",
+            "## Lifecycle",
+            "",
+            "- **init()** — Validates config (requires both tokens), returns capabilities",
+            "- **afterInit()** — Creates the `SlackAdapter`, registers it, and connects via Socket Mode",
+            "- **shutdown()** — Disconnects the Socket Mode client gracefully",
+          ].join("\n"),
+        }],
+      };
     },
 
     async afterInit(ctx: PluginAfterInitContext): Promise<void> {
