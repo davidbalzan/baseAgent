@@ -172,51 +172,94 @@ export function parseOpenCodeModelRef(model: string, defaultProviderID: string):
   return { providerID: defaultProviderID, modelID: model };
 }
 
-export function promptToText(prompt: unknown): string {
-  if (!Array.isArray(prompt)) return "";
+/**
+ * Extract text from a message content field (string or parts array).
+ */
+function extractMsgText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") return "";
+      const partType = (part as { type?: unknown }).type;
+      if (partType === "text") {
+        const maybeText = (part as { text?: unknown; textDelta?: unknown }).text
+          ?? (part as { textDelta?: unknown }).textDelta;
+        return typeof maybeText === "string" ? maybeText : "";
+      }
+      if (partType === "tool-call") {
+        const toolName = (part as { toolName?: unknown }).toolName;
+        return typeof toolName === "string" ? `[tool-call:${toolName}]` : "[tool-call]";
+      }
+      if (partType === "tool-result") {
+        const toolName = (part as { toolName?: unknown }).toolName;
+        return typeof toolName === "string" ? `[tool-result:${toolName}]` : "[tool-result]";
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
 
-  const chunks: string[] = [];
+/**
+ * Split an AI-SDK prompt array into { system, user } for the OpenCode bridge.
+ *
+ * We intentionally DO NOT forward upstream system prompts to OpenCode's
+ * `system` parameter because that can trigger recursive "agent-on-agent"
+ * behaviour (tool manifests echoed, prompt leakage, synthetic tool logs).
+ */
+export function splitPrompt(prompt: unknown): { system: string; user: string } {
+  if (!Array.isArray(prompt)) return { system: "", user: "" };
+
+  const turns: Array<{ role: string; text: string }> = [];
 
   for (const msg of prompt) {
     if (!msg || typeof msg !== "object") continue;
     const role = typeof (msg as { role?: unknown }).role === "string"
       ? String((msg as { role?: string }).role)
       : "user";
-    const content = (msg as { content?: unknown }).content;
+    const text = extractMsgText((msg as { content?: unknown }).content);
+    if (!text) continue;
 
-    if (typeof content === "string") {
-      chunks.push(`${role}: ${content}`);
-      continue;
-    }
-
-    if (Array.isArray(content)) {
-      const text = content
-        .map((part) => {
-          if (!part || typeof part !== "object") return "";
-          const partType = (part as { type?: unknown }).type;
-          if (partType === "text") {
-            const maybeText = (part as { text?: unknown; textDelta?: unknown }).text
-              ?? (part as { textDelta?: unknown }).textDelta;
-            return typeof maybeText === "string" ? maybeText : "";
-          }
-          if (partType === "tool-call") {
-            const toolName = (part as { toolName?: unknown }).toolName;
-            return typeof toolName === "string" ? `[tool-call:${toolName}]` : "[tool-call]";
-          }
-          if (partType === "tool-result") {
-            const toolName = (part as { toolName?: unknown }).toolName;
-            return typeof toolName === "string" ? `[tool-result:${toolName}]` : "[tool-result]";
-          }
-          return "";
-        })
-        .filter(Boolean)
-        .join("\n");
-
-      if (text) chunks.push(`${role}: ${text}`);
+    if (role !== "system") {
+      turns.push({ role, text });
     }
   }
 
-  return chunks.join("\n\n").trim();
+  const system = "";
+
+  // User text: conversation history + current message
+  const chunks: string[] = [];
+
+  // Find the last user message (the current query)
+  let lastUserIdx = -1;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i].role === "user") { lastUserIdx = i; break; }
+  }
+
+  // Conversation history — keep a short tail for coherence
+  if (lastUserIdx > 0) {
+    const historyWindow = turns.slice(Math.max(0, lastUserIdx - 6), lastUserIdx);
+    for (const turn of historyWindow) {
+      const label = turn.role === "assistant" ? "Assistant" : "User";
+      chunks.push(`${label}: ${turn.text}`);
+    }
+  }
+
+  // Current user message — no prefix
+  if (lastUserIdx >= 0) {
+    chunks.push("Respond to the current user message only. Do not repeat prompts or tool manifests.");
+    chunks.push(`Current user message:\n${turns[lastUserIdx].text}`);
+  }
+
+  const user = chunks.join("\n\n").trim();
+  return { system, user };
+}
+
+/** @deprecated Use splitPrompt instead. Kept for backward compat with tests. */
+export function promptToText(prompt: unknown): string {
+  const { system, user } = splitPrompt(prompt);
+  return [system, user].filter(Boolean).join("\n\n");
 }
 
 // ─── SSE parser ──────────────────────────────────────────────────
@@ -377,7 +420,7 @@ export function createOpenCodeBridgeModel(options: OpenCodeBridgeOptions): Langu
     }
 
     const sessionId = await createSession();
-    const text = promptToText(prompt);
+    const { user } = splitPrompt(prompt);
 
     // 1. Subscribe to SSE event stream
     const sseController = new AbortController();
@@ -396,13 +439,15 @@ export function createOpenCodeBridgeModel(options: OpenCodeBridgeOptions): Langu
 
     // 2. Fire async prompt (non-blocking)
     // Do NOT await the response — the prompt_async endpoint returns 204 immediately.
+    // Send only the user payload via `parts`.
+    const promptBody: Record<string, unknown> = {
+      model: modelRef,
+      parts: [{ type: "text", text: user }],
+    };
     const promptFetch = fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({
-        model: modelRef,
-        parts: [{ type: "text", text }],
-      }),
+      body: JSON.stringify(promptBody),
     }).catch((err) => {
       // Will be caught by SSE error handling
       sseController.abort();
@@ -434,6 +479,12 @@ export function createOpenCodeBridgeModel(options: OpenCodeBridgeOptions): Langu
         let totalPromptTokens = 0;
         let totalCompletionTokens = 0;
         let finished = false;
+        // Track text snapshots per part ID so we can diff full-text updates
+        const textSnapshotsByPart = new Map<string, string>();
+        // Track message roles so we only forward assistant content.
+        // OpenCode streams parts for BOTH user and assistant messages.
+        const userMessageIDs = new Set<string>();
+        const assistantMessageIDs = new Set<string>();
 
         // Set overall timeout
         const overallTimeout = setTimeout(() => {
@@ -459,15 +510,34 @@ export function createOpenCodeBridgeModel(options: OpenCodeBridgeOptions): Langu
               case "message.part.updated": {
                 const { part, delta } = (event as OcEventMessagePartUpdated).properties;
 
+                // Only forward parts that belong to an assistant message.
+                // OpenCode streams parts for both user and assistant messages;
+                // user parts are the echoed input and must be skipped.
+                const partMsgId = (part as { messageID?: string }).messageID;
+                if (partMsgId && userMessageIDs.has(partMsgId)) break;
+                if (partMsgId && !assistantMessageIDs.has(partMsgId) && assistantMessageIDs.size > 0) break;
+
                 // Text delta — stream it through
                 if (part.type === "text" && typeof delta === "string" && delta.length > 0) {
                   controller.enqueue({ type: "text-delta", textDelta: delta });
+                  textSnapshotsByPart.set((part as OcTextPart).id, (part as OcTextPart).text ?? "");
                 }
 
-                // Full text part (no delta — final snapshot)
+                // Full text part (no delta — snapshot mode). Some OpenCode
+                // responses arrive as snapshots rather than incremental deltas.
+                // Diff against the last known snapshot to emit only new text.
                 if (part.type === "text" && !delta && (part as OcTextPart).text) {
-                  // Only emit if we haven't been streaming deltas (fallback)
-                  // In practice, deltas are preferred; this is a safety net
+                  const textPart = part as OcTextPart;
+                  const previous = textSnapshotsByPart.get(textPart.id) ?? "";
+                  if (textPart.text.startsWith(previous)) {
+                    const suffix = textPart.text.slice(previous.length);
+                    if (suffix.length > 0) {
+                      controller.enqueue({ type: "text-delta", textDelta: suffix });
+                    }
+                  } else if (textPart.text !== previous) {
+                    controller.enqueue({ type: "text-delta", textDelta: textPart.text });
+                  }
+                  textSnapshotsByPart.set(textPart.id, textPart.text);
                 }
 
                 // Reasoning part
@@ -475,33 +545,8 @@ export function createOpenCodeBridgeModel(options: OpenCodeBridgeOptions): Langu
                   controller.enqueue({ type: "reasoning" as LanguageModelV1StreamPart["type"], textDelta: delta } as LanguageModelV1StreamPart);
                 }
 
-                // Tool part — emit as tool-call-delta / tool-call when completed
-                if (part.type === "tool") {
-                  const toolPart = part as OcToolPart;
-                  if (toolPart.state.status === "completed" || toolPart.state.status === "error") {
-                    // Emit a synthetic tool-call event so the agent loop's trace captures it.
-                    // The Vercel AI SDK `tool-call` part expects toolCallId, toolName, args.
-                    // We emit it as metadata via provider metadata since the SDK doesn't have
-                    // a built-in "bridge tool call" part type. Instead we use text annotations.
-                    const state = toolPart.state;
-                    const toolInfo = `[tool:${toolPart.tool}] `;
-                    if (state.status === "completed") {
-                      const summary = (state as OcToolStateCompleted).title || toolPart.tool;
-                      const output = (state as OcToolStateCompleted).output;
-                      const duration = (state as OcToolStateCompleted).time.end - (state as OcToolStateCompleted).time.start;
-                      // Emit as a text delta so it appears in the trace
-                      controller.enqueue({
-                        type: "text-delta",
-                        textDelta: `${toolInfo}${summary} (${duration}ms)\n`,
-                      });
-                    } else if (state.status === "error") {
-                      controller.enqueue({
-                        type: "text-delta",
-                        textDelta: `${toolInfo}ERROR: ${(state as OcToolStateError).error}\n`,
-                      });
-                    }
-                  }
-                }
+                // Tool parts: OpenCode runs its own tools internally. Don't
+                // forward their status as text — it pollutes the user response.
 
                 // Step finish — accumulate usage
                 if (part.type === "step-finish") {
@@ -545,9 +590,15 @@ export function createOpenCodeBridgeModel(options: OpenCodeBridgeOptions): Langu
               }
 
               case "message.updated": {
-                // AssistantMessage completion — can carry final token counts
+                // Track which messages are user vs assistant so we can
+                // filter out echoed user input from message.part.updated.
                 const mu = event as OcEventMessageUpdated;
                 const info = mu.properties.info;
+                if (info.role === "user") {
+                  userMessageIDs.add(info.id);
+                } else if (info.role === "assistant") {
+                  assistantMessageIDs.add(info.id);
+                }
                 if (info.role === "assistant" && info.tokens) {
                   // Use as authoritative if we have it (overrides step-finish accumulation)
                   totalPromptTokens = info.tokens.input;
@@ -628,7 +679,7 @@ export function createOpenCodeBridgeModel(options: OpenCodeBridgeOptions): Langu
 
     return {
       stream,
-      rawCall: { rawPrompt: text, rawSettings: {} },
+      rawCall: { rawPrompt: user, rawSettings: {} },
     };
   };
 
