@@ -167,6 +167,32 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/plugin-npm-installer:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/plugin-opencode:
+    dependencies:
+      '@baseagent/core':
+        specifier: workspace:*
+        version: link:../core
+      ai:
+        specifier: ^4.1.0
+        version: 4.3.19(react@19.2.4)(zod@3.25.76)
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/plugin-scheduler:
     dependencies:
       '@baseagent/core':
@@ -264,6 +290,12 @@ importers:
       '@baseagent/plugin-heartbeat':
         specifier: workspace:*
         version: link:../plugin-heartbeat
+      '@baseagent/plugin-npm-installer':
+        specifier: workspace:*
+        version: link:../plugin-npm-installer
+      '@baseagent/plugin-opencode':
+        specifier: workspace:*
+        version: link:../plugin-opencode
       '@baseagent/plugin-scheduler':
         specifier: workspace:*
         version: link:../plugin-scheduler

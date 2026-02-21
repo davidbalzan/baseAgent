@@ -68,5 +68,17 @@ export async function resolvePlugins(
     plugins.push(createSelfEnhancePlugin());
   }
 
+  // NPM Installer documentation (always loaded — provides tool documentation)
+  {
+    const { createNpmInstallerDocsPlugin } = await import("@baseagent/plugin-npm-installer");
+    plugins.push(createNpmInstallerDocsPlugin());
+  }
+
+  // OpenCode bridge (self-disables when opencode is not configured)
+  {
+    const { createOpencodePlugin } = await import("@baseagent/plugin-opencode");
+    plugins.push(createOpencodePlugin());
+  }
+
   return plugins;
 }

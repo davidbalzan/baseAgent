@@ -35,7 +35,7 @@ export type {
 export { loadConfig } from "./config/loader.js";
 
 // Model
-export { resolveModel, resolveSingleModel, resolveModelWithFallbacks } from "./model/resolver.js";
+export { resolveModel, resolveSingleModel, resolveModelWithFallbacks, registerModelProvider, clearModelProviders } from "./model/resolver.js";
 export { createFallbackModel } from "./model/fallback-model.js";
 export { getFallbackModelStatus } from "./model/fallback-model.js";
 export type { FallbackCallback, FallbackReason, FallbackModelStatusEntry } from "./model/fallback-model.js";
@@ -76,6 +76,7 @@ export type {
   PluginPhase,
   PluginAfterInitContext,
   RunSessionLikeFn,
+  ModelProviderFactory,
   DashboardTab,
   PluginDoc,
   ChannelAdapterLike,

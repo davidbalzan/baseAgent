@@ -1,5 +1,38 @@
 import type { StreamCallbacks } from "./adapter.js";
 
+// ─── Friendly tool name map ──────────────────────────────────────
+
+const FRIENDLY_TOOL_NAMES: Record<string, string> = {
+  shell_exec: "Running command",
+  file_read: "Reading file",
+  file_write: "Writing file",
+  file_edit: "Editing file",
+  file_list: "Browsing files",
+  web_fetch: "Fetching page",
+  web_search: "Searching web",
+  memory_read: "Reading memory",
+  memory_write: "Saving to memory",
+  think: "Reasoning",
+  finish: "Finishing up",
+  session_search: "Searching sessions",
+  review_sessions: "Reviewing sessions",
+  schedule_task: "Scheduling task",
+  list_scheduled_tasks: "Listing tasks",
+  cancel_scheduled_task: "Cancelling task",
+  install_plugin: "Installing plugin",
+  remove_plugin: "Removing plugin",
+  list_plugins: "Listing plugins",
+  add_mcp_server: "Adding MCP server",
+  pnpm_install: "Installing package",
+};
+
+function friendlyToolName(raw: string): string {
+  if (FRIENDLY_TOOL_NAMES[raw]) return FRIENDLY_TOOL_NAMES[raw];
+  // Fallback: replace underscores and capitalize first letter
+  const label = raw.replace(/_/g, " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export interface StreamBufferConfig {
   maxLength: number;
   editIntervalMs: number;
@@ -35,6 +68,7 @@ export function createStreamBuffer(
 ): StreamBufferHandle {
   let buffer = "";
   let toolStatus = "";
+  let toolCallCount = 0;
   let editTimer: ReturnType<typeof setInterval> | null = null;
   let typingTimer: ReturnType<typeof setInterval> | null = null;
   let lastEditedText = "";
@@ -70,7 +104,19 @@ export function createStreamBuffer(
       toolStatus = "";
     },
     onToolCall: (toolName) => {
-      toolStatus = `Using ${toolName}...`;
+      // Pseudo-status from bootstrap progress timer (e.g. "thinking", "working (step 2)")
+      if (toolName === "thinking" || toolName.startsWith("working")) {
+        toolStatus = toolName.charAt(0).toUpperCase() + toolName.slice(1) + "...";
+        return;
+      }
+      toolCallCount += 1;
+      toolStatus = `Step ${toolCallCount} \u00b7 ${friendlyToolName(toolName)}...`;
+    },
+    onToolResult: (toolName, success, error) => {
+      const label = friendlyToolName(toolName);
+      toolStatus = success
+        ? `\u2713 ${label}`
+        : `\u2717 ${label}${error ? `: ${error.slice(0, 80)}` : ""}`;
     },
     onFinish: async (output) => {
       finished = true;

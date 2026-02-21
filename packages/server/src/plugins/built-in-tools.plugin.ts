@@ -16,6 +16,7 @@ import {
   createFileEditTool,
   createFileListTool,
   createShellExecTool,
+  createPnpmInstallTool,
   createWebFetchTool,
   createWebSearchTool,
   createSessionSearchTool,
@@ -89,6 +90,7 @@ export function createBuiltInToolsPlugin(deps: BuiltInToolsPluginDeps): Plugin {
       tools.push(createFileEditTool(ctx.workspacePath));
       tools.push(createFileListTool(ctx.workspacePath, ctx.rootDir));
       tools.push(createShellExecTool(ctx.workspacePath, ctx.rootDir));
+      tools.push(createPnpmInstallTool(ctx.workspacePath, ctx.rootDir));
       tools.push(createWebFetchTool());
       if (process.env.BRAVE_SEARCH_API_KEY) {
         tools.push(createWebSearchTool());

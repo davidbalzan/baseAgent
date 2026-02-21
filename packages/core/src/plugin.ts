@@ -39,6 +39,7 @@ export interface IncomingMessageLike {
 export interface StreamCallbacksLike {
   onTextDelta: (delta: string) => void;
   onToolCall: (toolName: string) => void;
+  onToolResult?: (toolName: string, success: boolean, error?: string) => void;
   onFinish: (output: string) => void;
   onError: (error: Error) => void;
 }
@@ -92,6 +93,12 @@ export interface PluginDoc {
   content: string;
 }
 
+/** Factory function for plugin-contributed model providers. */
+export type ModelProviderFactory = (spec: {
+  model: string;
+  providers?: Record<string, unknown>;
+}) => Promise<import("ai").LanguageModel>;
+
 /** Capabilities returned by a plugin's init(). */
 export interface PluginCapabilities {
   tools?: AnyToolDefinition[];
@@ -103,6 +110,8 @@ export interface PluginCapabilities {
   dashboardTabs?: DashboardTab[];
   /** Documentation pages contributed by this plugin. */
   docs?: PluginDoc[];
+  /** Model provider contributed by this plugin (e.g. opencode bridge). */
+  modelProvider?: { name: string; factory: ModelProviderFactory };
 }
 
 /** Determines the order in which plugins are loaded. */

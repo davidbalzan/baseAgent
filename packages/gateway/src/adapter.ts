@@ -23,6 +23,7 @@ export interface StreamCallbacks {
   onTextDelta: (delta: string) => void;
   onTextReset?: () => void;
   onToolCall: (toolName: string) => void;
+  onToolResult?: (toolName: string, success: boolean, error?: string) => void;
   onFinish: (output: string) => void;
   onError: (error: Error) => void;
 }

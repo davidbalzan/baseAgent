@@ -1,8 +1,9 @@
 llm:
-  provider: opencode
-  model: anthropic/claude-sonnet-4-20250514
-  costPerMInputTokens: 0
-  costPerMOutputTokens: 0
+  provider: openrouter
+  model: z-ai/glm-4.7-flash
+  apiKey: ${OPENROUTER_API_KEY}
+  costPerMInputTokens: 0.06
+  costPerMOutputTokens: 0.40
   fallbackModels:
     - provider: openrouter
       model: z-ai/glm-4.7-flash
@@ -14,6 +15,9 @@ llm:
     - quota-window
     - rate-limit
     - auth
+  capableModel:
+    provider: openrouter
+    model: z-ai/glm-5
   capableFallbackModels:
     - provider: openrouter
       model: z-ai/glm-4.7-flash

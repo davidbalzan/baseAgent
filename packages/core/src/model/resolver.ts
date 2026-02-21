@@ -1,8 +1,22 @@
 import type { LanguageModel } from "ai";
 import type { AppConfig, LlmProvider } from "../schemas/config.schema.js";
+import type { ModelProviderFactory } from "../plugin.js";
 import { createFallbackModel, type FallbackCallback } from "./fallback-model.js";
 import { getAnthropicOauthAccessToken, getOpenAIOauthAccessToken } from "./anthropic-oauth.js";
-import { createOpenCodeBridgeModel } from "./opencode-bridge.js";
+
+// ─── Plugin-contributed model provider registry ──────────────────
+
+const providerRegistry = new Map<string, ModelProviderFactory>();
+
+export function registerModelProvider(name: string, factory: ModelProviderFactory): void {
+  providerRegistry.set(name, factory);
+}
+
+export function clearModelProviders(): void {
+  providerRegistry.clear();
+}
+
+// ─── Types ──────────────────────────────────────────────────────
 
 export interface SingleModelSpec {
   provider: LlmProvider;
@@ -24,6 +38,12 @@ interface ResolvedModelOptions {
 
 export async function resolveSingleModel(spec: SingleModelSpec): Promise<LanguageModel> {
   const { provider, model, apiKey, providers } = spec;
+
+  // Check plugin-contributed providers first
+  const pluginFactory = providerRegistry.get(provider);
+  if (pluginFactory) {
+    return pluginFactory({ model, providers: providers as Record<string, unknown> | undefined });
+  }
 
   switch (provider) {
     case "openrouter": {
@@ -74,19 +94,6 @@ export async function resolveSingleModel(spec: SingleModelSpec): Promise<Languag
       const baseURL = providers?.lmStudio?.baseUrl ?? "http://localhost:1234/v1";
       const lmStudio = createOpenAI({ baseURL, apiKey: "lm-studio" });
       return lmStudio(model);
-    }
-
-    case "opencode": {
-      return createOpenCodeBridgeModel({
-        model,
-        fallbackModels: providers?.opencode?.modelFallbacks,
-        baseUrl: providers?.opencode?.baseUrl,
-        providerId: providers?.opencode?.providerId,
-        directory: providers?.opencode?.directory,
-        timeoutMs: providers?.opencode?.timeoutMs,
-        modelCooldownMs: providers?.opencode?.modelCooldownMs,
-        modelCooldownReasons: providers?.opencode?.modelCooldownReasons,
-      });
     }
 
     default:

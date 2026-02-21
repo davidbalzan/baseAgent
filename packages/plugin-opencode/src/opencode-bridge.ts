@@ -2,7 +2,7 @@ import type {
   LanguageModelV1,
   LanguageModelV1StreamPart,
 } from "ai";
-import type { FallbackReason } from "./fallback-model.js";
+import type { FallbackReason } from "@baseagent/core";
 
 // ─── Public types ────────────────────────────────────────────────
 

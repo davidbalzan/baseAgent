@@ -29,7 +29,7 @@ describe("createStreamBuffer", () => {
     handle.cleanup();
   });
 
-  it("shows tool status with underscore style by default", async () => {
+  it("shows tool status with step counter and friendly name", async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined);
     const handle = createStreamBuffer(
       { maxLength: 4096, editIntervalMs: 500 },
@@ -42,7 +42,45 @@ describe("createStreamBuffer", () => {
 
     vi.advanceTimersByTime(500);
     await vi.waitFor(() => {
-      expect(editMessage).toHaveBeenCalledWith("Processing...\n\n_Using shell_exec..._");
+      expect(editMessage).toHaveBeenCalledWith("Processing...\n\n_Step 1 \u00b7 Running command..._");
+    });
+
+    handle.cleanup();
+  });
+
+  it("increments step counter across tool calls", async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined);
+    const handle = createStreamBuffer(
+      { maxLength: 4096, editIntervalMs: 500 },
+      editMessage,
+    );
+
+    handle.callbacks.onToolCall("file_read");
+    handle.callbacks.onToolCall("file_edit");
+    handle.callbacks.onToolCall("shell_exec");
+    handle.start();
+
+    vi.advanceTimersByTime(500);
+    await vi.waitFor(() => {
+      expect(editMessage).toHaveBeenCalledWith("\n\n_Step 3 \u00b7 Running command..._");
+    });
+
+    handle.cleanup();
+  });
+
+  it("shows pseudo-status without step counter", async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined);
+    const handle = createStreamBuffer(
+      { maxLength: 4096, editIntervalMs: 500 },
+      editMessage,
+    );
+
+    handle.callbacks.onToolCall("thinking");
+    handle.start();
+
+    vi.advanceTimersByTime(500);
+    await vi.waitFor(() => {
+      expect(editMessage).toHaveBeenCalledWith("\n\n_Thinking..._");
     });
 
     handle.cleanup();
@@ -62,7 +100,7 @@ describe("createStreamBuffer", () => {
 
     vi.advanceTimersByTime(500);
     await vi.waitFor(() => {
-      expect(editMessage).toHaveBeenCalledWith("Processing...\n\n*Using shell_exec...*");
+      expect(editMessage).toHaveBeenCalledWith("Processing...\n\n*Step 1 \u00b7 Running command...*");
     });
 
     handle.cleanup();

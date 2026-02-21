@@ -16,6 +16,7 @@ export interface TelegramConfig {
   };
 }
 
+
 interface MediaMessageContext {
   chat: { id: number | string };
   from: { id: number | string };
@@ -49,6 +50,45 @@ export class TelegramAdapter implements ChannelAdapter {
     this.setupHandlers();
   }
 
+  // ─── Shared helpers ──────────────────────────────────────────────
+
+  /** Build an editMessage function bound to a specific chat message. */
+  private buildEditFn(
+    tg: MediaMessageContext["telegram"],
+    chatId: number | string,
+    messageId: number,
+  ): (content: string) => Promise<void> {
+    return async (content: string): Promise<void> => {
+      try {
+        await tg.editMessageText(chatId, messageId, undefined, content, { parse_mode: "Markdown" });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("message is not modified")) {
+          if (msg.includes("can't parse entities")) {
+            try {
+              await tg.editMessageText(chatId, messageId, undefined, content);
+            } catch {
+              // Silently ignore fallback errors
+            }
+          }
+        }
+      }
+    };
+  }
+
+  /** Fire-and-forget dispatch: don't await so Telegraf's polling loop can
+   *  continue receiving updates (e.g. governance confirmation replies). */
+  private dispatch(
+    incoming: IncomingMessage,
+    buffer: ReturnType<typeof createStreamBuffer>,
+  ): void {
+    this.handleMessage(incoming, buffer.callbacks).catch((err) => {
+      buffer.callbacks.onError(err instanceof Error ? err : new Error(String(err)));
+    });
+  }
+
+  // ─── Handler setup ───────────────────────────────────────────────
+
   private setupHandlers(): void {
     // Handle text messages
     this.bot.on(message("text"), async (ctx) => {
@@ -66,41 +106,12 @@ export class TelegramAdapter implements ChannelAdapter {
 
       const text = ctx.message.text;
 
-      // Send typing indicator immediately
       try { await ctx.sendChatAction("typing"); } catch {}
 
-      // Send immediate feedback
       const placeholder = await ctx.reply("Thinking...");
+      const editMessage = this.buildEditFn(ctx.telegram, chatId, placeholder.message_id);
 
-      const editMessage = async (content: string): Promise<void> => {
-        try {
-          await ctx.telegram.editMessageText(
-            chatId,
-            placeholder.message_id,
-            undefined,
-            content,
-            { parse_mode: "Markdown" },
-          );
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
-          if (!message.includes("message is not modified")) {
-            if (message.includes("can't parse entities")) {
-              try {
-                await ctx.telegram.editMessageText(
-                  chatId,
-                  placeholder.message_id,
-                  undefined,
-                  content,
-                );
-              } catch {
-                // Silently ignore fallback errors
-              }
-            }
-          }
-        }
-      };
-
-      const streamBuffer = createStreamBuffer(
+      const buffer = createStreamBuffer(
         { maxLength: TELEGRAM_MAX_LENGTH, editIntervalMs: EDIT_INTERVAL_MS },
         editMessage,
         {
@@ -116,22 +127,15 @@ export class TelegramAdapter implements ChannelAdapter {
         messageId: String(ctx.message.message_id),
       };
 
-      streamBuffer.start();
-
-      // Fire-and-forget: don't await so Telegraf's polling loop can
-      // continue receiving updates (e.g. governance confirmation replies).
-      this.handleMessage(incoming, streamBuffer.callbacks).catch(async (err) => {
-        streamBuffer.callbacks.onError(
-          err instanceof Error ? err : new Error(String(err)),
-        );
-      });
+      buffer.start();
+      this.dispatch(incoming, buffer);
     });
 
     // Handle callback queries (inline keyboard button presses)
     this.bot.on(callbackQuery("data"), async (ctx) => {
-      const callbackQuery = ctx.callbackQuery;
-      const chatId = callbackQuery.message?.chat.id;
-      const userId = String(callbackQuery.from.id);
+      const cbQuery = ctx.callbackQuery;
+      const chatId = cbQuery.message?.chat.id;
+      const userId = String(cbQuery.from.id);
 
       if (!chatId) return;
 
@@ -141,42 +145,14 @@ export class TelegramAdapter implements ChannelAdapter {
       // Check allowlist + rate limit guard
       if (this.guard(userId) !== null) return;
 
-      const text = `[CALLBACK] ${callbackQuery.data || ""}`;
+      const text = `[CALLBACK] ${cbQuery.data || ""}`;
 
-      // Send typing indicator
       try { await ctx.sendChatAction("typing"); } catch {}
 
       const placeholder = await ctx.reply("Processing...");
+      const editMessage = this.buildEditFn(ctx.telegram, chatId, placeholder.message_id);
 
-      const editMessage = async (content: string): Promise<void> => {
-        try {
-          await ctx.telegram.editMessageText(
-            chatId,
-            placeholder.message_id,
-            undefined,
-            content,
-            { parse_mode: "Markdown" },
-          );
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
-          if (!message.includes("message is not modified")) {
-            if (message.includes("can't parse entities")) {
-              try {
-                await ctx.telegram.editMessageText(
-                  chatId,
-                  placeholder.message_id,
-                  undefined,
-                  content,
-                );
-              } catch {
-                // Silently ignore fallback errors
-              }
-            }
-          }
-        }
-      };
-
-      const streamBuffer = createStreamBuffer(
+      const buffer = createStreamBuffer(
         { maxLength: TELEGRAM_MAX_LENGTH, editIntervalMs: EDIT_INTERVAL_MS },
         editMessage,
         {
@@ -189,23 +165,18 @@ export class TelegramAdapter implements ChannelAdapter {
         text,
         channelId: `telegram:${chatId}`,
         userId,
-        messageId: String(callbackQuery.message?.message_id || 0),
+        messageId: String(cbQuery.message?.message_id || 0),
         attachments: [{
           kind: "callback_query",
           payload: {
-            data: callbackQuery.data,
-            messageId: callbackQuery.message?.message_id,
+            data: cbQuery.data,
+            messageId: cbQuery.message?.message_id,
           },
         }],
       };
 
-      streamBuffer.start();
-
-      this.handleMessage(incoming, streamBuffer.callbacks).catch(async (err) => {
-        streamBuffer.callbacks.onError(
-          err instanceof Error ? err : new Error(String(err)),
-        );
-      });
+      buffer.start();
+      this.dispatch(incoming, buffer);
     });
 
     // Handle photo messages
@@ -354,11 +325,7 @@ export class TelegramAdapter implements ChannelAdapter {
 
     // Handle poll messages
     this.bot.on(message("poll"), async (ctx) => {
-      const msg = ctx.message;
-      if (!msg) return;
-      if (!("poll" in msg)) return;
-      const poll = msg.poll;
-      if (!poll) return;
+      const poll = ctx.message.poll;
       await this.handleMediaMessage(ctx, "poll", {
         payload: {
           id: poll.id,
@@ -385,51 +352,18 @@ export class TelegramAdapter implements ChannelAdapter {
     const chatId = ctx.chat.id;
     const userId = String(ctx.from.id);
 
-    // Check for pending confirmation before any rate limiting
-    // For media messages, we should still allow confirmation resolution but not with empty string
-    if (this.confirmations.hasPending(String(chatId))) {
-      // Media messages don't provide text, so they cannot resolve confirmations
-      return;
-    }
+    // Media messages can't resolve text-based confirmations — drop silently.
+    if (this.confirmations.hasPending(String(chatId))) return;
 
     // Allowlist + rate limit guard
     if (this.guard(userId) !== null) return;
 
-    // Send typing indicator immediately
     try { await ctx.sendChatAction("typing"); } catch {}
 
-    // Send immediate feedback
     const placeholder = await ctx.reply("Processing...");
+    const editMessage = this.buildEditFn(ctx.telegram, chatId, placeholder.message_id);
 
-    const editMessage = async (content: string): Promise<void> => {
-      try {
-        await ctx.telegram.editMessageText(
-          chatId,
-          placeholder.message_id,
-          undefined,
-          content,
-          { parse_mode: "Markdown" },
-        );
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!message.includes("message is not modified")) {
-          if (message.includes("can't parse entities")) {
-            try {
-              await ctx.telegram.editMessageText(
-                chatId,
-                placeholder.message_id,
-                undefined,
-                content,
-              );
-            } catch {
-              // Silently ignore fallback errors
-            }
-          }
-        }
-      }
-    };
-
-    const streamBuffer = createStreamBuffer(
+    const buffer = createStreamBuffer(
       { maxLength: TELEGRAM_MAX_LENGTH, editIntervalMs: EDIT_INTERVAL_MS },
       editMessage,
       {
@@ -449,15 +383,8 @@ export class TelegramAdapter implements ChannelAdapter {
       } as IncomingMessageAttachment],
     };
 
-    streamBuffer.start();
-
-    // Fire-and-forget: don't await so Telegraf's polling loop can
-    // continue receiving updates (e.g. governance confirmation replies).
-    this.handleMessage(incoming, streamBuffer.callbacks).catch(async (err) => {
-      streamBuffer.callbacks.onError(
-        err instanceof Error ? err : new Error(String(err)),
-      );
-    });
+    buffer.start();
+    this.dispatch(incoming, buffer);
   }
 
   async requestConfirmation(channelId: string, prompt: string, timeoutMs?: number): Promise<{ approved: boolean; reason?: string }> {
@@ -480,26 +407,21 @@ export class TelegramAdapter implements ChannelAdapter {
     if (!chatId) return;
 
     const truncated = truncateText(text, TELEGRAM_MAX_LENGTH);
+    const replyMarkup = options?.inlineKeyboard
+      ? { inline_keyboard: options.inlineKeyboard }
+      : undefined;
 
-    const extra: any = { parse_mode: "Markdown" };
-    if (options?.inlineKeyboard) {
-      extra.reply_markup = {
-        inline_keyboard: options.inlineKeyboard,
-      };
-    }
+    // Type cast is required because our button type allows optional url/callback_data
+    // while Telegraf's discriminated union requires exactly one of them set.
+    type TgExtra = Parameters<typeof this.bot.telegram.sendMessage>[2];
+    const extra = { parse_mode: "Markdown" as const, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) } as TgExtra;
+    const fallback = (replyMarkup ? { reply_markup: replyMarkup } : {}) as TgExtra;
 
     try {
       await this.bot.telegram.sendMessage(chatId, truncated, extra);
     } catch {
       try {
-        // Fallback without markdown
-        const fallbackExtra: any = {};
-        if (options?.inlineKeyboard) {
-          fallbackExtra.reply_markup = {
-            inline_keyboard: options.inlineKeyboard,
-          };
-        }
-        await this.bot.telegram.sendMessage(chatId, truncated, fallbackExtra);
+        await this.bot.telegram.sendMessage(chatId, truncated, fallback);
       } catch (err) {
         console.error("[telegram] sendMessage failed:", err);
       }
@@ -515,12 +437,12 @@ export class TelegramAdapter implements ChannelAdapter {
     try {
       await this.bot.telegram.sendPhoto(chatId, input, {
         caption: caption ? truncateText(caption, 1024) : undefined,
-        parse_mode: "Markdown"
+        parse_mode: "Markdown",
       });
     } catch {
       try {
         await this.bot.telegram.sendPhoto(chatId, input, {
-          caption: caption ? truncateText(caption, 1024) : undefined
+          caption: caption ? truncateText(caption, 1024) : undefined,
         });
       } catch (err) {
         console.error("[telegram] sendPhoto failed:", err);
@@ -528,23 +450,24 @@ export class TelegramAdapter implements ChannelAdapter {
     }
   }
 
-  async sendDocument(channelId: string, document: string | Buffer, filename?: string, caption?: string): Promise<void> {
+  async sendDocument(channelId: string, doc: string | Buffer, filename?: string, caption?: string): Promise<void> {
     const chatId = extractChannelId(channelId);
     if (!chatId) return;
 
-    const input = typeof document === "string"
-      ? { source: document, filename }
-      : { source: document as Buffer, filename };
+    // String = URL or file_id — pass directly. Buffer = local file — wrap with source/filename.
+    const input: string | { source: Buffer; filename?: string } = typeof doc === "string"
+      ? doc
+      : { source: doc, filename };
 
     try {
       await this.bot.telegram.sendDocument(chatId, input, {
         caption: caption ? truncateText(caption, 1024) : undefined,
-        parse_mode: "Markdown"
+        parse_mode: "Markdown",
       });
     } catch {
       try {
         await this.bot.telegram.sendDocument(chatId, input, {
-          caption: caption ? truncateText(caption, 1024) : undefined
+          caption: caption ? truncateText(caption, 1024) : undefined,
         });
       } catch (err) {
         console.error("[telegram] sendDocument failed:", err);
@@ -561,12 +484,12 @@ export class TelegramAdapter implements ChannelAdapter {
     try {
       await this.bot.telegram.sendAudio(chatId, input, {
         caption: caption ? truncateText(caption, 1024) : undefined,
-        parse_mode: "Markdown"
+        parse_mode: "Markdown",
       });
     } catch {
       try {
         await this.bot.telegram.sendAudio(chatId, input, {
-          caption: caption ? truncateText(caption, 1024) : undefined
+          caption: caption ? truncateText(caption, 1024) : undefined,
         });
       } catch (err) {
         console.error("[telegram] sendAudio failed:", err);
@@ -583,12 +506,12 @@ export class TelegramAdapter implements ChannelAdapter {
     try {
       await this.bot.telegram.sendVideo(chatId, input, {
         caption: caption ? truncateText(caption, 1024) : undefined,
-        parse_mode: "Markdown"
+        parse_mode: "Markdown",
       });
     } catch {
       try {
         await this.bot.telegram.sendVideo(chatId, input, {
-          caption: caption ? truncateText(caption, 1024) : undefined
+          caption: caption ? truncateText(caption, 1024) : undefined,
         });
       } catch (err) {
         console.error("[telegram] sendVideo failed:", err);
@@ -599,9 +522,8 @@ export class TelegramAdapter implements ChannelAdapter {
   async start(): Promise<void> {
     const botInfo = await this.bot.telegram.getMe();
     console.log(`[telegram] Bot @${botInfo.username} authenticated`);
-    
+
     if (this.config.webhook?.enabled && this.config.webhook.url) {
-      // Webhook mode
       try {
         await this.bot.telegram.setWebhook(this.config.webhook.url, {
           secret_token: this.config.webhook.secret,
@@ -616,7 +538,6 @@ export class TelegramAdapter implements ChannelAdapter {
         console.log("[telegram] Bot started (long polling, will process queued messages)");
       }
     } else {
-      // Long polling mode (default)
       this.bot.launch({ dropPendingUpdates: false });
       console.log("[telegram] Bot started (long polling, will process queued messages)");
     }

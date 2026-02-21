@@ -456,6 +456,9 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
       markProgress();
       stream.onToolCall(call.toolName);
     });
+    emitter.on("tool_result", (result) => {
+      stream.onToolResult?.(result.toolName, !result.error, result.error);
+    });
     emitter.on("error", (error) => stream.onError(error));
 
     let progressTick = 0;

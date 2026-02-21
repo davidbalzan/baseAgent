@@ -1,5 +1,7 @@
 import {
   createLogger,
+  registerModelProvider,
+  clearModelProviders,
   type Plugin,
   type PluginContext,
   type PluginCapabilities,
@@ -104,6 +106,11 @@ export async function loadPlugins(
       if (caps.docs) {
         docs.push(...caps.docs);
       }
+
+      // Register plugin-contributed model providers
+      if (caps.modelProvider) {
+        registerModelProvider(caps.modelProvider.name, caps.modelProvider.factory);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       ctx.warn(`[plugin-loader] Plugin "${plugin.name}" init failed: ${msg}`);
@@ -153,6 +160,7 @@ export async function loadPlugins(
     },
 
     async shutdown(): Promise<void> {
+      clearModelProviders();
       // Shutdown in reverse order
       for (const plugin of [...enabledPlugins].reverse()) {
         if (!plugin.shutdown) continue;
