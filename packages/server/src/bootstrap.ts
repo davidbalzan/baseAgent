@@ -438,7 +438,11 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     try {
       const tokenBudget = config.llm.conversationHistoryTokenBudget ?? config.memory.conversationHistoryTokenBudget;
       const conversationHistory = message.channelId
-        ? buildConversationHistory(sessionRepo.findRecentByChannelId(message.channelId), tokenBudget)
+        ? buildConversationHistory(
+            sessionRepo.findRecentByChannelId(message.channelId),
+            tokenBudget,
+            message.skipHistoryBefore ? { after: message.skipHistoryBefore } : undefined,
+          )
         : undefined;
 
       const confirmationDelegate = createConfirmationDelegateForChannel(message.channelId);

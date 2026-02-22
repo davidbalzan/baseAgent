@@ -17,6 +17,8 @@ export interface IncomingMessage {
   userId: string;
   messageId: string;
   attachments?: IncomingMessageAttachment[];
+  /** When set, conversation history older than this ISO timestamp is excluded. */
+  skipHistoryBefore?: string;
 }
 
 export interface StreamCallbacks {

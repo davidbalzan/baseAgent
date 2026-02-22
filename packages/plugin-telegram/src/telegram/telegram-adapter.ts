@@ -41,6 +41,8 @@ export class TelegramAdapter implements ChannelAdapter {
   private confirmations = createConfirmationManager();
   private guard: (userId: string) => string | null;
   private config: TelegramConfig;
+  /** Per-channel reset timestamps set by the /new command. */
+  private resetTimestamps = new Map<string, string>();
 
   constructor(config: TelegramConfig, handleMessage: HandleMessageFn, allowedUserIds?: string[], rateLimiter?: RateLimiter) {
     this.config = config;
@@ -105,6 +107,14 @@ export class TelegramAdapter implements ChannelAdapter {
       if (this.guard(userId) !== null) return;
 
       const text = ctx.message.text;
+      const channelId = `telegram:${chatId}`;
+
+      // Handle /new command — reset conversation history for this channel
+      if (text.trim() === "/new") {
+        this.resetTimestamps.set(channelId, new Date().toISOString());
+        await ctx.reply("Starting fresh session.");
+        return;
+      }
 
       try { await ctx.sendChatAction("typing"); } catch {}
 
@@ -122,9 +132,10 @@ export class TelegramAdapter implements ChannelAdapter {
 
       const incoming: IncomingMessage = {
         text,
-        channelId: `telegram:${chatId}`,
+        channelId,
         userId,
         messageId: String(ctx.message.message_id),
+        skipHistoryBefore: this.resetTimestamps.get(channelId),
       };
 
       buffer.start();

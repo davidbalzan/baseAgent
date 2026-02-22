@@ -22,13 +22,16 @@ const HEADER_OVERHEAD_CHARS = 50;
 export function buildConversationHistory(
   sessions: Array<{ input: string; output: string | null; createdAt: string }>,
   tokenBudget: number,
+  options?: { after?: string },
 ): CoreMessage[] | undefined {
+  const afterTs = options?.after ? new Date(options.after).getTime() : undefined;
   const selected: Array<{ input: string; output: string; createdAt: string }> = [];
   // Reserve space for the boundary marker pair
   let tokensUsed = BOUNDARY_TOKENS;
 
   for (const s of sessions) {
     if (!s.output) continue;
+    if (afterTs && new Date(s.createdAt).getTime() < afterTs) continue;
     const turnTokens = Math.ceil((s.input.length + s.output.length + HEADER_OVERHEAD_CHARS) / 4);
     if (tokensUsed + turnTokens > tokenBudget) break;
     selected.push({ input: s.input, output: s.output, createdAt: s.createdAt });
