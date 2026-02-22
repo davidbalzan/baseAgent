@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { reflectAfterToolCall, reflectBeforeToolCall, shouldNudgeForWeakCompletion } from "../reflection.js";
+import { reflectAfterToolCall, reflectBeforeToolCall, shouldNudgeForWeakCompletion, reflectOnBehavioralPatterns } from "../reflection.js";
 
 const toolDef = {
   name: "dummy",
@@ -151,5 +151,143 @@ describe("reflection checks", () => {
 
     expect(check.shouldNudge).toBe(true);
     expect(check.reason).toBe("missing_evidence_for_file_change_claim");
+  });
+});
+
+describe("reflectAfterToolCall generic errors", () => {
+  it("nudges on ENOENT errors", () => {
+    const post = reflectAfterToolCall(
+      "file_read",
+      { path: "/some/missing/file.ts" },
+      "",
+      "ENOENT: no such file or directory, open '/some/missing/file.ts'",
+    );
+
+    expect(post.outcome).toBe("error");
+    expect(post.shouldNudge).toBe(true);
+    expect(post.recommendation).toContain("does not exist");
+  });
+
+  it("nudges with stronger message on repeated ENOENT", () => {
+    const post = reflectAfterToolCall(
+      "file_read",
+      { path: "/bad/path.ts" },
+      "",
+      "ENOENT: no such file or directory",
+      { failedPaths: { "/bad/path.ts": 3 } },
+    );
+
+    expect(post.shouldNudge).toBe(true);
+    expect(post.recommendation).toContain("STOP retrying");
+    expect(post.recommendation).toContain("3 times");
+  });
+
+  it("nudges on permission denied errors", () => {
+    const post = reflectAfterToolCall(
+      "file_write",
+      { path: "/etc/passwd" },
+      "",
+      "EACCES: permission denied",
+    );
+
+    expect(post.shouldNudge).toBe(true);
+    expect(post.recommendation).toContain("Permission denied");
+  });
+
+  it("nudges on governance confirmation errors", () => {
+    const post = reflectAfterToolCall(
+      "file_write",
+      { path: "/some/file.ts" },
+      "",
+      "Tool file_write requires confirmation but no interactive session is available.",
+    );
+
+    expect(post.shouldNudge).toBe(true);
+    expect(post.recommendation).toContain("requires confirmation");
+  });
+
+  it("nudges on generic unknown errors (fallback)", () => {
+    const post = reflectAfterToolCall(
+      "some_tool",
+      {},
+      "",
+      "Connection timeout after 30000ms",
+    );
+
+    expect(post.shouldNudge).toBe(true);
+    expect(post.recommendation).toContain("adjust parameters");
+  });
+});
+
+describe("reflectOnBehavioralPatterns", () => {
+  it("detects think-loop (3+ consecutive thinks)", () => {
+    const check = reflectOnBehavioralPatterns({
+      consecutiveThinkCalls: 3,
+      totalThinkCalls: 5,
+      totalShellExecCalls: 0,
+      totalProductiveToolCalls: 1,
+    });
+
+    expect(check.shouldNudge).toBe(true);
+    expect(check.reason).toBe("think_loop");
+  });
+
+  it("does not nudge on 2 consecutive thinks", () => {
+    const check = reflectOnBehavioralPatterns({
+      consecutiveThinkCalls: 2,
+      totalThinkCalls: 2,
+      totalShellExecCalls: 0,
+      totalProductiveToolCalls: 3,
+    });
+
+    expect(check.shouldNudge).toBe(false);
+  });
+
+  it("detects repeated path failure (3+ times)", () => {
+    const check = reflectOnBehavioralPatterns({
+      failedPaths: { "/src/missing.ts": 3 },
+      consecutiveThinkCalls: 0,
+      totalThinkCalls: 0,
+      totalShellExecCalls: 0,
+      totalProductiveToolCalls: 2,
+    });
+
+    expect(check.shouldNudge).toBe(true);
+    expect(check.reason).toBe("repeated_path_failure");
+  });
+
+  it("detects shell_exec overuse", () => {
+    const check = reflectOnBehavioralPatterns({
+      consecutiveThinkCalls: 0,
+      totalThinkCalls: 0,
+      totalShellExecCalls: 10,
+      totalProductiveToolCalls: 0,
+    });
+
+    expect(check.shouldNudge).toBe(true);
+    expect(check.reason).toBe("shell_exec_overuse");
+  });
+
+  it("detects think-heavy sessions", () => {
+    const check = reflectOnBehavioralPatterns({
+      consecutiveThinkCalls: 0,
+      totalThinkCalls: 4,
+      totalShellExecCalls: 2,
+      totalProductiveToolCalls: 2,
+    });
+
+    expect(check.shouldNudge).toBe(true);
+    expect(check.reason).toBe("think_heavy");
+  });
+
+  it("returns clean for healthy sessions", () => {
+    const check = reflectOnBehavioralPatterns({
+      consecutiveThinkCalls: 0,
+      totalThinkCalls: 1,
+      totalShellExecCalls: 2,
+      totalProductiveToolCalls: 8,
+    });
+
+    expect(check.shouldNudge).toBe(false);
   });
 });

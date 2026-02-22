@@ -21,6 +21,8 @@ export interface TaskSchedulerDeps {
   store: TaskStore;
   runSession: RunSessionLikeFn;
   sendProactiveMessage?: (channelId: string, text: string) => Promise<void>;
+  /** Fallback channel used when a task has no channelId. */
+  defaultChannelId?: string;
   intervalMs?: number;
 }
 
@@ -43,7 +45,7 @@ function buildScheduledTaskPrompt(task: ScheduledTask, now: Date): string {
 }
 
 export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
-  const { store, runSession, sendProactiveMessage } = deps;
+  const { store, runSession, sendProactiveMessage, defaultChannelId } = deps;
   const intervalMs = deps.intervalMs ?? 60_000;
 
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -72,9 +74,11 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
 
         try {
           const prompt = buildScheduledTaskPrompt(task, new Date());
+          // Resolve delivery channel: task-specific → config default → internal
+          const deliveryChannel = task.channelId ?? defaultChannelId;
           const result = await runSession({
             input: prompt,
-            channelId: task.channelId ?? "scheduler:internal",
+            channelId: deliveryChannel ?? "scheduler:internal",
           });
 
           store.update(task.id, {
@@ -85,18 +89,18 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): TaskScheduler {
           log.log(`Task ${task.id.slice(0, 8)}… completed — output: ${output.slice(0, 120)}${output.length > 120 ? "..." : ""}`);
 
           // Delivery phase — tracked separately from execution
-          if (task.channelId && sendProactiveMessage) {
+          if (deliveryChannel && sendProactiveMessage) {
             try {
-              await sendProactiveMessage(task.channelId, output);
+              await sendProactiveMessage(deliveryChannel, output);
               store.update(task.id, { deliveryStatus: "delivered" });
-              log.log(`Delivered result to ${task.channelId}`);
+              log.log(`Delivered result to ${deliveryChannel}`);
             } catch (err) {
               store.update(task.id, { deliveryStatus: "failed", error: String(err) });
-              log.error(`Delivery failed for task ${task.id.slice(0, 8)}… to ${task.channelId}: ${err}`);
+              log.error(`Delivery failed for task ${task.id.slice(0, 8)}… to ${deliveryChannel}: ${err}`);
             }
           } else {
             store.update(task.id, { deliveryStatus: "skipped" });
-            if (!task.channelId) log.log(`Task ${task.id.slice(0, 8)}… has no channelId — delivery skipped`);
+            if (!deliveryChannel) log.log(`Task ${task.id.slice(0, 8)}… has no channelId and no defaultChannelId — delivery skipped`);
             else if (!sendProactiveMessage) log.log(`No sendProactiveMessage available — delivery skipped`);
           }
         } catch (err) {

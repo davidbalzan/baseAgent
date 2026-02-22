@@ -111,6 +111,8 @@ const AgentConfigSchema = z.object({
   maxFinishGateNudges: z.number().int().nonnegative().default(1),
   /** Default max chars for tool output before truncation (individual tools can override). */
   defaultMaxOutputChars: z.number().int().positive().default(10_000),
+  /** Default channel for delivering results when no channel is specified (e.g. "telegram:12345"). */
+  defaultChannelId: optionalString,
 });
 
 const MemoryConfigSchema = z.object({

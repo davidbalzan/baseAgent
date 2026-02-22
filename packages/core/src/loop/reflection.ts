@@ -33,11 +33,34 @@ export interface CompletionGateInput {
   toolStats?: Record<string, { success: number; error: number }>;
 }
 
+export interface BehavioralContext {
+  /** Map of file paths to the number of times they produced errors. */
+  failedPaths?: Record<string, number>;
+  /** Number of consecutive `think` calls without a productive tool call in between. */
+  consecutiveThinkCalls?: number;
+  /** Total `think` calls this session. */
+  totalThinkCalls?: number;
+  /** Total `shell_exec` calls this session. */
+  totalShellExecCalls?: number;
+  /** Total productive tool calls (file_read, file_write, file_edit, etc.). */
+  totalProductiveToolCalls?: number;
+}
+
 const HEX_ID_PREFIX = /^[a-f0-9-]{4,}$/i;
 
 function truncate(text: string, max = 220): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 3)}...`;
+}
+
+function extractFilePath(toolName: string, args: Record<string, unknown>, error: string): string | undefined {
+  // Try to get path from tool args first
+  for (const key of ["path", "file_path", "filePath", "filename"]) {
+    if (typeof args[key] === "string" && args[key]) return args[key] as string;
+  }
+  // Try to extract from error message
+  const match = error.match(/(?:ENOENT[^']*'([^']+)'|no such file[^:]*:\s*(.+?)(?:\s|$))/i);
+  return match?.[1] ?? match?.[2];
 }
 
 function isProtectedHeartbeatEdit(toolName: string, args: Record<string, unknown>): boolean {
@@ -102,6 +125,7 @@ export function reflectAfterToolCall(
   args: Record<string, unknown>,
   result: string,
   error?: string,
+  behavioralCtx?: BehavioralContext,
 ): ReflectionPostCheck {
   if (!error) {
     return {
@@ -112,6 +136,8 @@ export function reflectAfterToolCall(
   }
 
   const err = String(error);
+
+  // --- Specific error handlers (highest priority) ---
 
   if (toolName === "cancel_scheduled_task" && err.includes("No task found with ID starting with")) {
     return {
@@ -140,10 +166,64 @@ export function reflectAfterToolCall(
     };
   }
 
+  // --- Generic error handlers ---
+
+  // ENOENT / file-not-found: Don't retry the same path
+  if (/ENOENT|no such file|file not found|does not exist/i.test(err)) {
+    const filePath = extractFilePath(toolName, args, err);
+    const retryCount = filePath && behavioralCtx?.failedPaths?.[filePath];
+    if (retryCount && retryCount >= 2) {
+      return {
+        outcome: "error",
+        summary: truncate(err),
+        recommendation: `File "${truncate(filePath, 80)}" has failed ${retryCount} times. STOP retrying this path. List the directory to find the correct filename, or create the file if it should exist.`,
+        shouldNudge: true,
+      };
+    }
+    return {
+      outcome: "error",
+      summary: truncate(err),
+      recommendation: "This file does not exist. Verify the path by listing the parent directory before retrying.",
+      shouldNudge: true,
+    };
+  }
+
+  // Permission / access errors
+  if (/EACCES|permission denied|access denied|forbidden/i.test(err)) {
+    return {
+      outcome: "error",
+      summary: truncate(err),
+      recommendation: "Permission denied. Check file permissions or use an alternative approach.",
+      shouldNudge: true,
+    };
+  }
+
+  // Governance / confirmation blocked
+  if (/requires confirmation|no interactive session/i.test(err)) {
+    return {
+      outcome: "error",
+      summary: truncate(err),
+      recommendation: "This tool requires confirmation but no interactive session is available. Use an alternative approach or a tool with auto-allow permission.",
+      shouldNudge: true,
+    };
+  }
+
+  // Syntax / parse errors in shell commands
+  if (/syntax error|SyntaxError|parse error|unexpected token/i.test(err) && (toolName === "shell_exec" || toolName === "shell")) {
+    return {
+      outcome: "error",
+      summary: truncate(err),
+      recommendation: "Shell command had a syntax error. Fix the command syntax before retrying.",
+      shouldNudge: true,
+    };
+  }
+
+  // Generic fallback: still nudge on errors, but with softer guidance
   return {
     outcome: "error",
     summary: truncate(err),
-    shouldNudge: false,
+    recommendation: "Tool call failed. Review the error, adjust parameters or approach, and avoid repeating the same failing call.",
+    shouldNudge: true,
   };
 }
 
@@ -239,6 +319,69 @@ export function shouldNudgeForWeakCompletion(input: CompletionGateInput): {
       reason: "unverified_completion_after_failures",
       recommendation:
         "Before finishing, verify outcomes and clearly report tool failures, why they happened, and what the user can do next.",
+    };
+  }
+
+  return { shouldNudge: false };
+}
+
+/**
+ * Mid-loop behavioral pattern detection. Called each iteration to catch
+ * anti-patterns like think-loops, repeated failures, and shell_exec overuse.
+ */
+export function reflectOnBehavioralPatterns(ctx: BehavioralContext): {
+  shouldNudge: boolean;
+  reason?: string;
+  recommendation?: string;
+} {
+  const {
+    consecutiveThinkCalls = 0,
+    totalThinkCalls = 0,
+    totalShellExecCalls = 0,
+    totalProductiveToolCalls = 0,
+    failedPaths = {},
+  } = ctx;
+
+  // Think-loop: 3+ consecutive think calls with no productive action
+  if (consecutiveThinkCalls >= 3) {
+    return {
+      shouldNudge: true,
+      reason: "think_loop",
+      recommendation:
+        "You have called think " + consecutiveThinkCalls + " times in a row without taking action. Stop reasoning and execute a tool now. If you are stuck, try a different approach.",
+    };
+  }
+
+  // Repeated path failures: same file failed 3+ times
+  for (const [path, count] of Object.entries(failedPaths)) {
+    if (count >= 3) {
+      return {
+        shouldNudge: true,
+        reason: "repeated_path_failure",
+        recommendation:
+          `You have tried "${truncate(path, 80)}" ${count} times and it keeps failing. This path does not exist or is inaccessible. List the directory contents to find the correct path, or take a completely different approach.`,
+      };
+    }
+  }
+
+  // Shell-exec overuse: many shell calls with few productive tool calls
+  if (totalShellExecCalls >= 8 && totalProductiveToolCalls <= 1) {
+    return {
+      shouldNudge: true,
+      reason: "shell_exec_overuse",
+      recommendation:
+        "You have used shell_exec " + totalShellExecCalls + " times but only " + totalProductiveToolCalls + " productive tool calls (file_read/file_write/file_edit). Prefer built-in file tools over shell commands for reading, writing, and editing files.",
+    };
+  }
+
+  // Think-heavy: more than 40% of total calls are think with 5+ total
+  const totalCalls = totalThinkCalls + totalShellExecCalls + totalProductiveToolCalls;
+  if (totalCalls >= 5 && totalThinkCalls / totalCalls > 0.4) {
+    return {
+      shouldNudge: true,
+      reason: "think_heavy",
+      recommendation:
+        "Over 40% of your tool calls have been think calls. Reduce planning and take concrete actions. If the task is unclear, ask for clarification instead of over-thinking.",
     };
   }
 

@@ -47,3 +47,25 @@ regular routines, and any other facts that help provide better service._
 - Direct, concise communication style
 - Advanced technical level
 - Prefers action over ceremony
+
+
+## 2026-02-21T15:24:55.431Z
+
+## Identity
+
+- **Name**: Link
+- **Role**: Creator — David built you. He designed and implemented your architecture, plugin system, memory layer, and every package in this monorepo.
+
+## 2026-02-21T15:25:22.893Z
+
+## Identity
+
+- **Name**: Link
+- **Role**: Creator — David built you. He designed and implemented your architecture, plugin system, memory layer, and every package in this monorepo.
+
+## 2026-02-21T15:25:38.756Z
+
+## Identity
+
+- **Name**: Link
+- **Role**: Creator — David built you. He designed and implemented your architecture, plugin system, memory layer, and every package in this monorepo.

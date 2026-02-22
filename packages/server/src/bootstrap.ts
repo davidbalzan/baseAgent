@@ -472,22 +472,32 @@ export async function bootstrapAgent(configPath?: string): Promise<AgentBootstra
     };
   };
 
-  // Build proactive message sender from available adapters
-  const buildSendProactiveMessage = () => {
-    const adapters = pluginCtx.getAdapters();
-    const proactiveAdapters = adapters
-      .filter((a): a is ChannelAdapterLike & { sendMessage: (id: string, text: string) => Promise<void> } =>
-        typeof a.sendMessage === "function",
-      )
-      .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
-    return proactiveAdapters.length > 0
-      ? createProactiveMessenger(proactiveAdapters)
-      : undefined;
+  // Build a lazy proactive message sender.
+  // Adapters register during afterInit, so we resolve them on first call
+  // rather than eagerly (which would see an empty adapter list).
+  let resolvedSendFn: ((channelId: string, text: string) => Promise<void>) | null | undefined;
+  const lazySendProactiveMessage = async (channelId: string, text: string): Promise<void> => {
+    if (resolvedSendFn === undefined) {
+      const adapters = pluginCtx.getAdapters();
+      const proactiveAdapters = adapters
+        .filter((a): a is ChannelAdapterLike & { sendMessage: (id: string, text: string) => Promise<void> } =>
+          typeof a.sendMessage === "function",
+        )
+        .map((a) => ({ name: a.name, sendMessage: a.sendMessage.bind(a) }));
+      resolvedSendFn = proactiveAdapters.length > 0
+        ? createProactiveMessenger(proactiveAdapters)
+        : null;
+    }
+    if (resolvedSendFn) {
+      await resolvedSendFn(channelId, text);
+    } else {
+      serverLog.warn(`[proactive] No adapter available for delivery to ${channelId}`);
+    }
   };
 
   await pluginResult.afterInit(handleMessage, queuedHandleMessage, {
     createSessionRunner: createPluginSessionRunner,
-    sendProactiveMessage: buildSendProactiveMessage(),
+    sendProactiveMessage: lazySendProactiveMessage,
   });
 
   // adaptersByPrefix now points to the loader's map — adapters registered

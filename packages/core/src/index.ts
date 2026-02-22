@@ -55,8 +55,8 @@ export { compactMessages, persistCompactionSummary, decayToolOutputs } from "./l
 export type { ToolMessageMeta } from "./loop/compaction.js";
 export { createToolFailureState, processToolResults, TOOL_FAILURE_THRESHOLD, ALL_FAIL_THRESHOLD } from "./loop/tool-failure-tracker.js";
 export type { ToolFailureState, ToolCallResult, FailureRecoveryAction } from "./loop/tool-failure-tracker.js";
-export { reflectBeforeToolCall, reflectAfterToolCall } from "./loop/reflection.js";
-export type { ReflectionPreCheck, ReflectionPostCheck, ReflectionSessionSummary } from "./loop/reflection.js";
+export { reflectBeforeToolCall, reflectAfterToolCall, reflectOnBehavioralPatterns } from "./loop/reflection.js";
+export type { ReflectionPreCheck, ReflectionPostCheck, ReflectionSessionSummary, BehavioralContext } from "./loop/reflection.js";
 export {
   INJECTION_DEFENSE_PREAMBLE,
   INJECTION_DEFENSE_PREAMBLE_COMPACT,

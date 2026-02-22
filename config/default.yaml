@@ -66,6 +66,7 @@ agent:
   maxIterations: 35
   timeoutMs: 180000
   costCapUsd: 1
+  defaultChannelId: "telegram:1975268993"
 memory:
   compactionThreshold: 40000
   maxTokenBudget: 8000

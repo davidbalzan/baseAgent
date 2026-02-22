@@ -83,5 +83,29 @@
     "executeAt": "2026-02-21T08:21:00.000Z",
     "createdAt": "2026-02-21T08:20:50.207Z",
     "status": "completed"
+  },
+  {
+    "id": "09f66855-a029-4bcc-ba4e-54572689cab5",
+    "task": "Start cooking",
+    "executeAt": "2026-02-21T15:35:22.236Z",
+    "createdAt": "2026-02-21T15:30:28.903Z",
+    "status": "completed"
+  },
+  {
+    "id": "750bd3fe-fd16-4bf9-b166-96ad76919e32",
+    "task": "Remind David to start cooking",
+    "executeAt": "2026-02-21T16:05:59.070Z",
+    "createdAt": "2026-02-21T16:01:23.123Z",
+    "status": "completed"
+  },
+  {
+    "id": "128548cd-04ec-4692-98d1-c7654a992ffd",
+    "task": "Remind David to make a coffee.",
+    "executeAt": "2026-02-22T05:56:38.094Z",
+    "channelId": "telegram:1975268993",
+    "createdAt": "2026-02-22T05:51:40.006Z",
+    "status": "completed",
+    "completedAt": "2026-02-22T06:06:45.310Z",
+    "deliveryStatus": "skipped"
   }
 ]

@@ -11,7 +11,9 @@ import {
   reflectBeforeToolCall,
   reflectAfterToolCall,
   shouldNudgeForWeakCompletion,
+  reflectOnBehavioralPatterns,
   type ReflectionSessionSummary,
+  type BehavioralContext,
 } from "./reflection.js";
 
 export interface AgentLoopOptions {
@@ -69,6 +71,13 @@ export interface AgentLoopResult {
   messages: CoreMessage[];
   toolMessageMeta: ToolMessageMeta[];
   reflectionSummary?: ReflectionSessionSummary;
+}
+
+function extractFilePathFromArgs(args: Record<string, unknown>): string | undefined {
+  for (const key of ["path", "file_path", "filePath", "filename"]) {
+    if (typeof args[key] === "string" && args[key]) return args[key] as string;
+  }
+  return undefined;
 }
 
 function toolsToSdkFormat(tools: Record<string, ToolDefinition>): Record<string, CoreTool> {
@@ -196,6 +205,13 @@ export async function runAgentLoop(
   let totalToolErrors = 0;
   let totalToolSuccesses = 0;
   const toolStats: Record<string, { success: number; error: number }> = {};
+  // Behavioral tracking for mid-loop reflection
+  const failedPaths: Record<string, number> = {};
+  let consecutiveThinkCalls = 0;
+  let totalThinkCalls = 0;
+  let totalShellExecCalls = 0;
+  let totalProductiveToolCalls = 0;
+  const PRODUCTIVE_TOOLS = new Set(["file_read", "file_write", "file_edit", "file_list", "memory_write", "memory_read"]);
   const reflectionStats: ReflectionSessionSummary = {
     preChecks: 0,
     blockedCalls: 0,
@@ -447,6 +463,25 @@ export async function runAgentLoop(
             }
           : await executeTool(tc.toolName, tc.args);
 
+        // --- Behavioral tracking ---
+        if (tc.toolName === "think") {
+          consecutiveThinkCalls += 1;
+          totalThinkCalls += 1;
+        } else {
+          consecutiveThinkCalls = 0; // Reset on any non-think call
+        }
+        if (tc.toolName === "shell_exec" || tc.toolName === "shell") {
+          totalShellExecCalls += 1;
+        }
+        if (PRODUCTIVE_TOOLS.has(tc.toolName)) {
+          totalProductiveToolCalls += 1;
+        }
+        // Track failed file paths for ENOENT detection
+        if (execResult.error && /ENOENT|no such file|file not found|does not exist/i.test(execResult.error)) {
+          const filePath = extractFilePathFromArgs(tc.args) ?? "unknown";
+          failedPaths[filePath] = (failedPaths[filePath] ?? 0) + 1;
+        }
+
         if (execResult.error) {
           totalToolErrors += 1;
           toolStats[tc.toolName] = toolStats[tc.toolName] ?? { success: 0, error: 0 };
@@ -473,7 +508,8 @@ export async function runAgentLoop(
         });
 
         if (reflectionEnabled && reflectionPostEnabled) {
-          const postCheck = reflectAfterToolCall(tc.toolName, tc.args, execResult.result, execResult.error);
+          const behavioralCtx: BehavioralContext = { failedPaths, consecutiveThinkCalls, totalThinkCalls, totalShellExecCalls, totalProductiveToolCalls };
+          const postCheck = reflectAfterToolCall(tc.toolName, tc.args, execResult.result, execResult.error, behavioralCtx);
           reflectionStats.postChecks += 1;
           if (postCheck.outcome === "error") reflectionStats.postErrors += 1;
           emitTrace(loopEmitter, sessionId, "reflection_post", state.iteration, {
@@ -507,6 +543,27 @@ export async function runAgentLoop(
       toolMessageMeta.push({ messageIndex: messages.length - 1, iteration: state.iteration });
       for (const nudge of reflectionNudges) {
         messages.push({ role: "user", content: nudge });
+      }
+
+      // --- Mid-loop behavioral pattern reflection ---
+      if (reflectionEnabled && reflectionNudges.length < maxReflectionNudgesPerIteration) {
+        const behavioralCheck = reflectOnBehavioralPatterns({
+          failedPaths,
+          consecutiveThinkCalls,
+          totalThinkCalls,
+          totalShellExecCalls,
+          totalProductiveToolCalls,
+        });
+        if (behavioralCheck.shouldNudge && behavioralCheck.recommendation) {
+          messages.push({ role: "user", content: behavioralCheck.recommendation });
+          reflectionStats.nudgesInjected += 1;
+          emitTrace(loopEmitter, sessionId, "reflection_post", state.iteration, {
+            toolName: "_behavioral",
+            outcome: "error",
+            summary: behavioralCheck.reason ?? "behavioral_pattern",
+            recommendation: behavioralCheck.recommendation,
+          });
+        }
       }
 
       // --- Tool failure recovery ---

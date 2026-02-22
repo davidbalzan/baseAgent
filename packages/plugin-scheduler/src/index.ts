@@ -50,7 +50,7 @@ export function createSchedulerPlugin(): Plugin {
 
       return {
         tools: [
-          createScheduleTaskTool(store),
+          createScheduleTaskTool(store, ctx.config.agent.defaultChannelId),
           createListTasksTool(store),
           createCancelTaskTool(store),
           createCheckSchedulerHealthTool(store, () => scheduler),
@@ -126,6 +126,7 @@ export function createSchedulerPlugin(): Plugin {
         store,
         runSession,
         sendProactiveMessage: ctx.sendProactiveMessage,
+        defaultChannelId: ctx.config.agent.defaultChannelId,
       });
       scheduler.start();
     },
