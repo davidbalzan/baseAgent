@@ -148,8 +148,45 @@ export const schedulerDashboardTab: DashboardTab = {
 }
 .task-error-toggle:hover { opacity: 1; }
 
+.tasks-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tasks-toolbar-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tasks-toolbar-btn:hover { color: var(--text-1); border-color: var(--border-active); }
+.tasks-toolbar-btn.danger:hover { color: var(--red); border-color: var(--red); }
+
+.task-delete-btn {
+  font-size: 12px;
+  color: var(--text-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.task-card:hover .task-delete-btn { opacity: 1; }
+.task-delete-btn:hover { color: var(--red); }
+
 @media (max-width: 700px) {
   .tasks-grid { grid-template-columns: 1fr; padding: 12px 14px; }
+  .task-delete-btn { opacity: 1; }
 }
 `,
 
@@ -159,6 +196,11 @@ export const schedulerDashboardTab: DashboardTab = {
     <div class="tasks-header-title">Scheduled Tasks</div>
     <span class="tasks-subtitle">workspace/SCHEDULED_TASKS.json</span>
     <button class="tasks-reload-btn" onclick="loadTasks()">Reload</button>
+  </div>
+  <div class="tasks-toolbar" id="tasks-toolbar" style="display:none">
+    <button class="tasks-toolbar-btn" onclick="clearByStatus('completed')">Clear Completed</button>
+    <button class="tasks-toolbar-btn" onclick="clearByStatus('failed')">Clear Failed</button>
+    <button class="tasks-toolbar-btn danger" onclick="clearAll()">Clear All</button>
   </div>
   <div class="tasks-grid" id="tasks-grid">
     <div class="loading" style="grid-column:1/-1"><div class="loading-spinner"></div></div>
@@ -182,9 +224,15 @@ async function loadTasks() {
   }
 }
 
+function updateToolbar(tasks) {
+  var tb = document.getElementById('tasks-toolbar');
+  if (tb) tb.style.display = (tasks && tasks.length > 0) ? 'flex' : 'none';
+}
+
 function renderTasks(tasks) {
   var el = document.getElementById('tasks-grid');
   if (!el) return;
+  updateToolbar(tasks);
   if (!tasks || tasks.length === 0) {
     el.innerHTML =
       '<div class="empty-state" style="grid-column:1/-1">' +
@@ -225,6 +273,7 @@ function renderTasks(tasks) {
         '<div style="display:flex;gap:4px;align-items:center">' +
           '<span class="badge badge-task-' + t.status + '">' + t.status + '</span>' +
           deliveryBadge +
+          '<button class="task-delete-btn" onclick="deleteTask(\\x27' + t.id + '\\x27)" title="Delete task">&times;</button>' +
         '</div>' +
       '</div>' +
       '<div class="task-card-desc">' + escapeHtml(t.task) + '</div>' +
@@ -241,6 +290,28 @@ function renderTasks(tasks) {
 function toggleError(id) {
   var el = document.getElementById(id);
   if (el) el.classList.toggle('open');
+}
+
+async function deleteTask(id) {
+  try {
+    await fetch('/scheduler/tasks/' + id, { method: 'DELETE' });
+    loadTasks();
+  } catch (e) { /* ignore */ }
+}
+
+async function clearByStatus(status) {
+  try {
+    await fetch('/scheduler/tasks?status=' + status, { method: 'DELETE' });
+    loadTasks();
+  } catch (e) { /* ignore */ }
+}
+
+async function clearAll() {
+  if (!confirm('Delete ALL scheduled tasks? This cannot be undone.')) return;
+  try {
+    await fetch('/scheduler/tasks?status=all', { method: 'DELETE' });
+    loadTasks();
+  } catch (e) { /* ignore */ }
 }
 
 function formatTaskTime(iso) {

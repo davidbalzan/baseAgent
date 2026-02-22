@@ -28,7 +28,7 @@ export function createScheduleTaskTool(store: TaskStore, defaultChannelId?: stri
       const channelId = args.channelId ?? defaultChannelId;
       const id = randomUUID();
       const createdAt = new Date();
-      store.add({
+      const result = store.add({
         id,
         task: args.task,
         executeAt: executeAt.toISOString(),
@@ -36,6 +36,10 @@ export function createScheduleTaskTool(store: TaskStore, defaultChannelId?: stri
         createdAt: createdAt.toISOString(),
         status: "pending",
       });
+
+      if (result.deduplicated) {
+        return `Task already scheduled (id: ${result.id.slice(0, 8)}…). Duplicate not created.`;
+      }
 
       const delta = executeAt.getTime() - createdAt.getTime();
       const minutes = Math.round(delta / 60_000);

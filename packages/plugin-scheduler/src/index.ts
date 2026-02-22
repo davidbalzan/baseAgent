@@ -11,6 +11,7 @@ import { TaskStore } from "./task-store.js";
 import { createScheduleTaskTool } from "./tools/schedule-task.tool.js";
 import { createListTasksTool } from "./tools/list-tasks.tool.js";
 import { createCancelTaskTool } from "./tools/cancel-task.tool.js";
+import { createPurgeTasksTool } from "./tools/purge-tasks.tool.js";
 import { createCheckSchedulerHealthTool } from "./tools/check-scheduler-health.tool.js";
 import { createTestChannelDeliveryTool } from "./tools/test-channel-delivery.tool.js";
 import { createReadServerLogsTool } from "./tools/read-server-logs.tool.js";
@@ -46,6 +47,27 @@ export function createSchedulerPlugin(): Plugin {
         return c.json({ tasks });
       });
 
+      app.delete("/tasks/:id", (c) => {
+        const id = c.req.param("id");
+        const tasks = store!.getAll();
+        const match = tasks.find((t) => t.id === id || t.id.startsWith(id));
+        if (!match) return c.json({ deleted: 0 }, 404);
+        store!.remove(match.id);
+        return c.json({ deleted: 1 });
+      });
+
+      app.delete("/tasks", (c) => {
+        const status = c.req.query("status");
+        if (!status) return c.json({ error: "status query param required" }, 400);
+        let deleted: number;
+        if (status === "all") {
+          deleted = store!.clear();
+        } else {
+          deleted = store!.removeByStatus(status);
+        }
+        return c.json({ deleted });
+      });
+
       testDeliveryTool = createTestChannelDeliveryTool();
 
       return {
@@ -53,6 +75,7 @@ export function createSchedulerPlugin(): Plugin {
           createScheduleTaskTool(store, ctx.config.agent.defaultChannelId),
           createListTasksTool(store),
           createCancelTaskTool(store),
+          createPurgeTasksTool(store),
           createCheckSchedulerHealthTool(store, () => scheduler),
           testDeliveryTool,
           createReadServerLogsTool(),
@@ -75,6 +98,7 @@ export function createSchedulerPlugin(): Plugin {
             "| `schedule_task` | write | Schedule a task for future execution. Accepts `task` (description) and `executeAt` (ISO 8601 datetime). |",
             "| `list_scheduled_tasks` | read | List all scheduled tasks with their status. |",
             "| `cancel_scheduled_task` | write | Cancel a pending task by its ID. |",
+            "| `purge_scheduled_tasks` | write | Delete tasks by ID (any status) or bulk-delete by status (completed/failed/all). |",
             "| `check_scheduler_health` | read | Check scheduler health: tick stats, task counts, delivery outcomes, errors. |",
             "| `test_channel_delivery` | write | Send a test message to a channel to verify delivery works. |",
             "| `read_server_logs` | read | Read recent server log entries from the in-memory buffer. Filter by name/level. |",
@@ -96,6 +120,8 @@ export function createSchedulerPlugin(): Plugin {
             "## API",
             "",
             "- `GET /scheduler/tasks` — Returns all tasks sorted by creation date (newest first)",
+            "- `DELETE /scheduler/tasks/:id` — Delete a single task by ID",
+            "- `DELETE /scheduler/tasks?status=completed|failed|all` — Bulk delete tasks by status",
             "",
             "## Dashboard",
             "",
