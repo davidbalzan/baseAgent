@@ -131,4 +131,27 @@ describe("buildConversationHistory", () => {
     // The last message should always be assistant — no dangling user turn
     expect(result[result.length - 1].role).toBe("assistant");
   });
+
+  it("filters out sessions before the 'after' timestamp", () => {
+    // Only the newest session (Feb 21) should survive when after = Feb 20 18:00
+    const result = buildConversationHistory(sessions, 10000, {
+      after: "2025-02-20T18:00:00.000Z",
+    })!;
+
+    expect(result).toHaveLength(2); // 1 user + 1 assistant
+    expect(result[0].content).toContain("newest message");
+  });
+
+  it("returns undefined when all sessions are before 'after'", () => {
+    const result = buildConversationHistory(sessions, 10000, {
+      after: "2025-12-01T00:00:00.000Z",
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it("includes all sessions when 'after' is not provided", () => {
+    const result = buildConversationHistory(sessions, 10000)!;
+    // All 3 sessions → 6 messages
+    expect(result).toHaveLength(6);
+  });
 });
